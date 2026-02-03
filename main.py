@@ -53,6 +53,12 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     
     # Feature Engineering
     df_clean = df.dropna().copy()
+    
+    # Sanitize Infs
+    import numpy as np
+    df_clean.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df_clean.dropna(inplace=True)
+    
     df_clean['Target_Return'] = df_clean['Gold_Returns'].shift(-1)
     df_train = df_clean.dropna()
 
@@ -66,6 +72,16 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     valid_features = [f for f in features if f in df_train.columns]
     X = df_train[valid_features]
     y = df_train['Target_Return']
+    
+    # Double check for NaNs in X
+    if X.isnull().values.any():
+        logger.warning(f"NaNs found in X after initial cleaning. Dropping rows...")
+        inds = X.isnull().any(axis=1)
+        X = X[~inds]
+        y = y[~inds]
+        
+    if len(X) == 0:
+        raise ValueError("No valid data left for training after cleaning.")
 
     # Train/Test Split (Time Series: No Shuffle)
     split_idx = int(0.8 * len(X))

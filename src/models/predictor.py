@@ -95,6 +95,24 @@ def recursive_forecast(model, last_known_features, current_price_usd,
         # 2. Predict Return for the next day
         pred_ret = model.predict(next_features)[0]
         
+        # --- NEW REALISM LOGIC (CONSERVATIVE MODE) ---
+        # A. Global Dampener: Reduce model aggression by 50%.
+        # The model tends to be overconfident on trend continuance.
+        pred_ret = pred_ret * 0.5 
+        
+        # B. Decay Confidence: The further out, the closer to 0 (neutral).
+        # We accelerate decay so long-term predictions flatten out faster.
+        decay_factor = 0.85 ** (i / 5) 
+        pred_ret = pred_ret * decay_factor
+        
+        # C. Add Organic Jitter: Reduced jitter for stability
+        jitter = np.random.normal(0, 0.003) 
+        pred_ret += jitter
+        
+        # D. Clamp: Tighten max daily move to +/- 3% (Gold is stable asset)
+        pred_ret = np.clip(pred_ret, -0.03, 0.03)
+        # ---------------------------------------------
+
         # 3. Update Simulated Price
         current_sim_price = current_sim_price * (1 + pred_ret)
         current_sim_price_idr = current_sim_price * current_rate_idr

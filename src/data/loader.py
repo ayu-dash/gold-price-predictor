@@ -121,21 +121,35 @@ def update_local_database(csv_path="gold_history.csv"):
             last_date = full_data.index.max()
             print(f"      Found existing database. Last date: {last_date.date()}")
 
-            start_date = last_date + pd.Timedelta(days=1)
-
-            if start_date > pd.Timestamp.now():
-                print("      Database is up to date.")
+            # Fix: Only fetch if last_date is strictly less than today (date only)
+            today = pd.Timestamp.now().normalize()
+            # If last entry is yesterday (or today), we are up to date for closed candles
+            if last_date >= (today - pd.Timedelta(days=1)):
+                print("      Database is up to date (Last date is yesterday/today).")
                 return full_data
+            
+            start_date = last_date + pd.Timedelta(days=1)
+            
+            # Double check to prevent fetching future OR today (incomplete)
+            if start_date >= today:
+                 print("      Next start date is today/future. Skipping until market close.")
+                 return full_data
 
             print(f"      Fetching updates since {start_date.date()}...")
             new_data = _fetch_incremental_data(start_date)
 
             if not new_data.empty:
-                print(f"      Append {len(new_data)} new rows.")
-                full_data = pd.concat([full_data, new_data])
-                full_data = full_data[~full_data.index.duplicated(keep='last')]
-                full_data.to_csv(csv_path)
-                print("      Database updated and saved.")
+                # CRITICAL FIX: Ensure 'Gold' column exists and is not all NaN
+                if 'Gold' not in new_data.columns:
+                     print("      Warning: New data missing 'Gold' column. Aborting update.")
+                elif new_data['Gold'].isnull().all():
+                     print("      Warning: New data has 'Gold' column but all values are NaN. Aborting.")
+                else:
+                    print(f"      Append {len(new_data)} new rows.")
+                    full_data = pd.concat([full_data, new_data])
+                    full_data = full_data[~full_data.index.duplicated(keep='last')]
+                    full_data.to_csv(csv_path)
+                    print("      Database updated and saved.")
             else:
                 print("      No new data available from markets.")
 
@@ -146,9 +160,11 @@ def update_local_database(csv_path="gold_history.csv"):
     if full_data.empty:
         print("      No local database found. Initializing...")
         full_data = fetch_market_data(period="max")
-        if not full_data.empty:
+        if not full_data.empty and 'Gold' in full_data.columns:
             full_data.to_csv(csv_path)
             print("      Database created.")
+        elif full_data.empty:
+             print("      Failed to fetch initial data.")
 
     return full_data
 
