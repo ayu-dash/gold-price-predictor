@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE Settings
+.vscode/
+.idea/
+
+# Checkpoints & Data
+gold_history.csv
+models/
+logs/
+instance/
+.pytest_cache/
+.coverage
+htmlcov/
+debug_env.py
+debug_test.txt
+check_price.py
+check_indicators_full.py
+
+# System
+.DS_Store
+Thumbs.db

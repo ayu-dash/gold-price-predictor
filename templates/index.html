@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gold Prediction Pro | Obsidian Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <span class="gold-text">GOLD</span> FUTURES PRO
+            </div>
+            <nav>
+                <a href="/" class="nav-item active">
+                    <span class="material-symbols-outlined">dashboard</span> Dashboard
+                </a>
+                <a href="/analytics" class="nav-item">
+                    <span class="material-symbols-outlined">analytics</span> Analytics
+                </a>
+                <a href="/charts" class="nav-item">
+                    <span class="material-symbols-outlined">show_chart</span> Charts
+                </a>
+                <a href="/signals" class="nav-item">
+                    <span class="material-symbols-outlined">notifications</span> Signals
+                </a>
+                <a href="/history" class="nav-item">
+                    <span class="material-symbols-outlined">history</span> History
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1>Market Intelligence Dashboard</h1>
+                <div class="date-display" id="current_date">--</div>
+            </header>
+
+            <div class="grid-container">
+                <!-- Hero Card: Current Price -->
+                <div class="card hero-card glass">
+                    <div class="card-header">Current Price (IDR/Gram)</div>
+                    <div class="price-container">
+                        <span id="price_idr" class="main-price">Loading...</span>
+                        <span id="price_change" class="change-tag">--%</span>
+                    </div>
+                    <div class="sub-price" id="price_usd">$ -- / Oz</div>
+                </div>
+
+                <!-- Signal Card -->
+                <div class="card signal-card glass">
+                    <div class="card-header">Trading Signal</div>
+                    <div id="signal_value" class="signal-value text-gold">--</div>
+                    <div id="target_price" class="sub-price" style="margin-top: 5px; font-weight: 600;">Target: --</div>
+                    <div class="action-window">Next Window: <span id="action_date">--</span></div>
+                </div>
+
+                <!-- Sentiment Card -->
+                <div class="card sentiment-card glass">
+                    <div class="card-header">Market Tendency</div>
+                    <div class="sentiment-bar-container">
+                        <div id="sentiment_bar" class="sentiment-bar" style="width: 50%;"></div>
+                    </div>
+                    <div class="sentiment-labels">
+                        <span>Bullish: <span id="bull_ratio" class="text-gold">--%</span></span>
+                        <span>Bearish: <span id="bear_ratio" class="text-red">--%</span></span>
+                    </div>
+                    <div class="sentiment-score" id="sentiment_avg">Score: 0.00</div>
+                </div>
+
+                <div class="card chart-card glass grid-span-2">
+                    <div class="card-header">
+                        Historical Trend
+                        <div class="timeframe-selector">
+                            <button class="tf-btn" data-days="30">1M</button>
+                            <button class="tf-btn" data-days="90">3M</button>
+                            <button class="tf-btn" data-days="180">6M</button>
+                            <button class="tf-btn active" data-days="100">ALL</button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="historyChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Watchlist / Factors -->
+                <div class="card factors-card glass">
+                    <div class="card-header">Key Risk Watchlist</div>
+                    <ul class="factors-list">
+                        <li><span class="dot gold"></span> <strong>Profit Taking</strong>: High post-rally risk.</li>
+                        <li><span class="dot gold"></span> <strong>The Fed</strong>: Inflation policy watch.</li>
+                        <li><span class="dot gold"></span> <strong>Geopolitics</strong>: Middle-East/Europe support.
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Multi-day Forecast -->
+                <div class="card forecast-card glass grid-span-full">
+                    <div class="card-header">
+                        Interactive Forecast
+                        <div class="forecast-input">
+                            <input type="number" id="forecast_days" value="7" min="2" max="100">
+                            <button id="run_forecast">Run Forecast</button>
+                        </div>
+                    </div>
+                    <div class="forecast-table-container">
+                        <table class="forecast-table">
+                            <thead>
+                                <tr>
+                                    <th>Day</th>
+                                    <th>Date</th>
+                                    <th>Price (IDR/g)</th>
+                                    <th>Estimated Change</th>
+                                </tr>
+                            </thead>
+                            <tbody id="forecast_body">
+                                <tr>
+                                    <td colspan="4" class="text-center">Set days and click run.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading Modal -->
+    <div id="loading_overlay" class="overlay">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <p>Analyzing Global Market Trends...</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+
+</html>

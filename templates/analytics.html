@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yearly Analytics | Gold Futures Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <span class="gold-text">GOLD</span> FUTURES PRO
+            </div>
+            <nav>
+                <a href="/" class="nav-item">
+                    <span class="material-symbols-outlined">dashboard</span> Dashboard
+                </a>
+                <a href="/analytics" class="nav-item active">
+                    <span class="material-symbols-outlined">analytics</span> Analytics
+                </a>
+                <a href="/charts" class="nav-item">
+                    <span class="material-symbols-outlined">show_chart</span> Charts
+                </a>
+                <a href="/signals" class="nav-item">
+                    <span class="material-symbols-outlined">notifications</span> Signals
+                </a>
+                <a href="/history" class="nav-item">
+                    <span class="material-symbols-outlined">history</span> History
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1>Annual Gold Performance</h1>
+                <div class="date-display" id="current_date">--</div>
+            </header>
+
+            <div class="grid-container">
+                <!-- ROI Chart -->
+                <div class="card chart-card glass grid-span-full">
+                    <div class="card-header">Year-over-Year ROI (%)</div>
+                    <div class="chart-container">
+                        <canvas id="roiChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Yearly Breakdown Table -->
+                <div class="card glass grid-span-full">
+                    <div class="card-header">Yearly Historical Breakdown (IDR/g)</div>
+                    <div class="forecast-table-container">
+                        <table class="forecast-table">
+                            <thead>
+                                <tr>
+                                    <th>Year</th>
+                                    <th>Jan 1st (Open)</th>
+                                    <th>Dec 31st (Close)</th>
+                                    <th>Annual High</th>
+                                    <th>Annual Low</th>
+                                    <th>Annual ROI</th>
+                                </tr>
+                            </thead>
+                            <tbody id="yearly_body">
+                                <tr>
+                                    <td colspan="6" class="text-center">Loading annual data...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading Modal -->
+    <div id="loading_overlay" class="overlay">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <p>Gathering Annual Market Data...</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+</body>
+
+</html>

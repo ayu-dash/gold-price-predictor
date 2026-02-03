@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Charts | Gold Futures Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <span class="gold-text">GOLD</span> FUTURES PRO
+            </div>
+            <nav>
+                <a href="/" class="nav-item">
+                    <span class="material-symbols-outlined">dashboard</span> Dashboard
+                </a>
+                <a href="/analytics" class="nav-item">
+                    <span class="material-symbols-outlined">analytics</span> Analytics
+                </a>
+                <a href="/charts" class="nav-item active">
+                    <span class="material-symbols-outlined">show_chart</span> Charts
+                </a>
+                <a href="/signals" class="nav-item">
+                    <span class="material-symbols-outlined">notifications</span> Signals
+                </a>
+                <a href="/history" class="nav-item">
+                    <span class="material-symbols-outlined">history</span> History
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1>Advanced Technical Analysis</h1>
+                <div class="date-display" id="current_date">--</div>
+            </header>
+
+            <div class="grid-container">
+                <!-- Timeframe Global Selector -->
+                <div class="card glass grid-span-full" style="padding: 15px;">
+                    <div class="timeframe-selector" style="justify-content: center;">
+                        <span style="color: var(--text-muted); margin-right: 20px; align-self: center;">Select Analysis
+                            Window:</span>
+                        <button class="tf-btn" data-days="30">1 Month</button>
+                        <button class="tf-btn" data-days="60">2 Months</button>
+                        <button class="tf-btn active" data-days="90">3 Months</button>
+                        <button class="tf-btn" data-days="180">6 Months</button>
+                    </div>
+                </div>
+
+                <!-- Main Price & SMAs -->
+                <div class="card chart-card glass grid-span-full">
+                    <div class="card-header">Price Action + SMA (50, 200)</div>
+                    <div class="chart-container" style="height: 400px;">
+                        <canvas id="priceChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- RSI Chart -->
+                <div class="card chart-card glass grid-span-full">
+                    <div class="card-header">Relative Strength Index (RSI 14)</div>
+                    <div class="chart-container" style="height: 200px;">
+                        <canvas id="rsiChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- MACD Chart -->
+                <div class="card chart-card glass grid-span-full">
+                    <div class="card-header">MACD (Moving Average Convergence Divergence)</div>
+                    <div class="chart-container" style="height: 250px;">
+                        <canvas id="macdChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading Modal -->
+    <div id="loading_overlay" class="overlay">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <p>Crunching Technical Indicators...</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+</body>
+
+</html>

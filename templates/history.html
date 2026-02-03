@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historical Archive | Gold Futures Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <span class="gold-text">GOLD</span> FUTURES PRO
+            </div>
+            <nav>
+                <a href="/" class="nav-item">
+                    <span class="material-symbols-outlined">dashboard</span> Dashboard
+                </a>
+                <a href="/analytics" class="nav-item">
+                    <span class="material-symbols-outlined">analytics</span> Analytics
+                </a>
+                <a href="/charts" class="nav-item">
+                    <span class="material-symbols-outlined">show_chart</span> Charts
+                </a>
+                <a href="/signals" class="nav-item">
+                    <span class="material-symbols-outlined">notifications</span> Signals
+                </a>
+                <a href="/history" class="nav-item active">
+                    <span class="material-symbols-outlined">history</span> History
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1>Historical Price Archive</h1>
+                <div class="date-display" id="current_date">--</div>
+            </header>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <span>Filter Data</span>
+                    <div class="forecast-input" style="float: none;">
+                        <select id="filter_year" class="tf-btn"
+                            style="background: var(--bg-dark); border: 1px solid var(--glass-border); color: white;">
+                            <option value="ALL">All Years</option>
+                            <!-- Populated by JS -->
+                        </select>
+                        <select id="filter_month" class="tf-btn"
+                            style="background: var(--bg-dark); border: 1px solid var(--glass-border); color: white;">
+                            <option value="ALL">All Months</option>
+                            <option value="01">January</option>
+                            <option value="02">February</option>
+                            <option value="03">March</option>
+                            <option value="04">April</option>
+                            <option value="05">May</option>
+                            <option value="06">June</option>
+                            <option value="07">July</option>
+                            <option value="08">August</option>
+                            <option value="09">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="forecast-table-container" style="max-height: 70vh; overflow-y: auto;">
+                    <table class="forecast-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Price (IDR/g)</th>
+                                <th>Price (USD/oz)</th>
+                                <th>USDIDR Rate</th>
+                                <th>Daily Change</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history_body">
+                            <tr>
+                                <td colspan="5" class="text-center">Loading Archive...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/history.js') }}"></script>
+</body>
+
+</html>
