@@ -61,50 +61,61 @@ def make_recommendation(current_price, predicted_price):
     else:
         return "HOLD", change_pct
 
+from src.features import engineering
+
 def recursive_forecast(model, last_known_features, current_price_usd, 
-                      current_rate_idr, days=5):
+                      current_rate_idr, days=5, historical_df=None):
     """
-    Generates multi-day forecast using recursive prediction strategy.
+    Generates multi-day forecast with dynamic feature updating.
+    Recalculates technical indicators (RSI/SMA/MACD) after each simulated day.
     """
+    from src.features import engineering
+    
     forecasts = []
-    current_sim_price = current_price_usd
-    # Ensure features is a DataFrame to avoid warning
-    if isinstance(last_known_features, pd.Series):
-        next_features = last_known_features.to_frame().T
+    
+    # Use historical data for indicator calculation buffer
+    if historical_df is None:
+        current_sim_df = last_known_features.copy()
     else:
-        next_features = last_known_features.copy()
+        current_sim_df = historical_df.copy()
+
+    current_sim_price = current_price_usd
 
     for i in range(1, days + 1):
-        # Predict return
+        # 1. Ensure features are consistent with training
+        feature_cols = [
+            'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
+            'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
+            'SMA_14', 'RSI', 'MACD', 'Sentiment'
+        ]
+        
+        # Prepare input features from the last row of simulation df
+        next_features = current_sim_df.iloc[[-1]][feature_cols].copy()
+
+        # 2. Predict Return for the next day
         pred_ret = model.predict(next_features)[0]
         
-        # Confidence Decay
-        decay_factor = max(0, 1 - (i * 0.05))
-        stable_ret = pred_ret * decay_factor
-        
-        # Add Noise (User Request: 0.5% volatility)
-        uncertainty = 0.005 * (1 + (i * 0.05))
-        noise = np.random.normal(0, uncertainty)
-        
-        active_ret = stable_ret + noise
-        
-        # Update Price
-        current_sim_price = current_sim_price * (1 + active_ret)
+        # 3. Update Simulated Price
+        current_sim_price = current_sim_price * (1 + pred_ret)
         current_sim_price_idr = current_sim_price * current_rate_idr
         
-        future_date = pd.Timestamp.now() + pd.Timedelta(days=i)
+        # 4. Append new state to history
+        new_row = current_sim_df.iloc[[-1]].copy()
+        new_row.index = [pd.Timestamp.now() + pd.Timedelta(days=i)]
+        new_row['Gold'] = current_sim_price
+        
+        current_sim_df = pd.concat([current_sim_df, new_row])
+        
+        # 5. Recalculate Indicators (The Critical Fix)
+        # This updates RSI, MACD, etc. based on the new price
+        current_sim_df = engineering.add_technical_indicators(current_sim_df)
         
         forecasts.append({
             'Day': i,
-            'Date': future_date.strftime('%Y-%m-%d'),
+            'Date': new_row.index[0].strftime('%Y-%m-%d'),
             'Price_USD': current_sim_price,
             'Price_IDR': current_sim_price_idr,
-            'Return_Pct': round(active_ret * 100, 2)
+            'Return_Pct': round(pred_ret * 100, 2)
         })
-        
-        # Update features (Gold price only)
-        # Assuming 'Gold' column exists
-        if 'Gold' in next_features.columns:
-            next_features['Gold'] = current_sim_price
             
     return forecasts

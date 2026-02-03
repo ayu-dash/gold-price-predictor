@@ -253,7 +253,6 @@ def fetch_news_sentiment(lookback_days=30, force_refresh=False):
         "Gold Price Forecast", "US Inflation Data", "Federal Reserve Rate Decisions",
         "Geopolitical Conflict Middle East", "China Gold Demand", "US Dollar Index Analysis",
         "Global Recession Risks", "Central Bank Gold Buying",
-        "site:kitco.com Gold News", "site:investing.com Gold Analysis", # Industry Specific
         
         # INDONESIA (Bahasa)
         "Harga Emas Antam Hari Ini", "Prediksi Harga Emas Indonesia",

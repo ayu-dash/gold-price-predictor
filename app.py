@@ -171,8 +171,12 @@ def get_forecast():
     current_usd = market_data['Gold'].iloc[-1]
     current_idr_rate = market_data['USD_IDR'].iloc[-1]
 
+    # Ambil data history (misal 100 hari terakhir) untuk buffer perhitungan indikator
+    history_buffer = df.tail(100).copy()
+
     forecast_data = predictor.recursive_forecast(
-        model_obj, latest_features, current_usd, current_idr_rate, days=days
+        model_obj, latest_features, current_usd, current_idr_rate, days=days,
+        historical_df=history_buffer
     )
 
     grams_per_oz = 31.1035

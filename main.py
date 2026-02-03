@@ -130,12 +130,20 @@ def interactive_forecast(
     latest_features: pd.DataFrame, 
     current_usd: float, 
     current_idr: float, 
-    days: int
+    days: int,
+    historical_df: Optional[pd.DataFrame] = None
 ) -> None:
     """Runs recursive forecast for N days."""
     logger.info(f"Generating recursive forecast for {days} days...")
+    
+    # Use tail of history for simulation buffer
+    history_buffer = None
+    if historical_df is not None:
+        history_buffer = historical_df.tail(100).copy()
+        
     forecasts = predictor.recursive_forecast(
-        model, latest_features, current_usd, current_idr, days=days
+        model, latest_features, current_usd, current_idr, days=days,
+        historical_df=history_buffer
     )
     
     print(f"\n{'Day':<5} | {'Date':<12} | {'Price (IDR/g)':<18} | {'Change'}")
@@ -193,7 +201,8 @@ def main():
             result['latest_features'], 
             result['current_usd'], 
             result['current_rate_idr'], 
-            days
+            days,
+            historical_df=df
         )
 
 
