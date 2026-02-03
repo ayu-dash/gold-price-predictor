@@ -104,6 +104,22 @@ def recursive_forecast(model, last_known_features, current_price_usd,
         new_row.index = [pd.Timestamp.now() + pd.Timedelta(days=i)]
         new_row['Gold'] = current_sim_price
         
+        # --- TAMBAHAN BARU: Guncang sedikit fitur makro agar tidak statis ---
+        # Daftar fitur yang perlu diberi 'nafas' (pergerakan acak kecil)
+        macro_features = ['Oil', 'DXY', 'SP500', 'Silver', 'Copper', 'US10Y']
+        
+        for feat in macro_features:
+            if feat in new_row.columns:
+                # Beri perubahan acak antara -1% sampai +1% setiap hari
+                macro_noise = np.random.uniform(-0.01, 0.01) 
+                new_row[feat] = new_row[feat] * (1 + macro_noise)
+        
+        # Sentiment juga bisa di-decay ke arah netral (0) pelan-pelan
+        if 'Sentiment' in new_row.columns:
+             # Sentiment bergerak 10% kembali ke netral setiap hari
+            new_row['Sentiment'] = new_row['Sentiment'] * 0.9 
+        # --------------------------------------------------------------------
+        
         current_sim_df = pd.concat([current_sim_df, new_row])
         
         # 5. Recalculate Indicators (The Critical Fix)
