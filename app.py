@@ -145,7 +145,35 @@ def get_prediction():
 
     return jsonify(result)
 
+    return jsonify(result)
 
+
+@app.route("/api/live_price")
+def get_live_price():
+    """Returns realtime price update (1-min delay)."""
+    # 1. Fetch Gold Price
+    live_gold = loader.fetch_live_data('GC=F')
+    if not live_gold:
+        return jsonify({"error": "Failed to fetch live data"}), 503
+
+    # 2. Fetch USD/IDR Rate (also live if possible, or fallback)
+    live_idr = loader.fetch_live_data('IDR=X')
+    rate = live_idr['price'] if live_idr else 15500.0 # Logical fallback
+    
+    current_usd = live_gold['price']
+    current_time = datetime.now().strftime('%H:%M:%S')
+    
+    # Conversion
+    grams_per_oz = 31.1035
+    price_gram_idr = (current_usd * rate) / grams_per_oz
+    
+    return jsonify({
+        "timestamp": current_time,
+        "price_usd": round(current_usd, 2),
+        "price_idr_gram": round(price_gram_idr, 0),
+        "change_pct": round(live_gold['change_pct'], 2),
+        "rate": round(rate, 2)
+    })
 @app.route("/api/forecast")
 def get_forecast():
     """Generates a recursive multi-day forecast using pre-trained model."""

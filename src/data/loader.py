@@ -454,3 +454,55 @@ def fetch_news_sentiment(
         print(f"      Cache save failed: {e}")
 
     return avg_sentiment, headlines, sentiment_counts
+
+
+def fetch_live_data(ticker: str = 'GC=F') -> Optional[Dict[str, float]]:
+    """
+    Fetches the latest available intraday price (1-minute interval) 
+    to simulate real-time updates.
+
+    Args:
+        ticker (str): Ticker symbol (default Gold Futures 'GC=F').
+
+    Returns:
+        Optional[Dict[str, float]]: Dictionary with 'price' and 'change_pct',
+                                    or None if fetch fails.
+    """
+    try:
+        # Fetch 1-day history with 1-minute interval to get latest candle
+        # 'period=1d' might be empty if market is closed, so we use '5d' to be safe
+        # but '1m' interval is usually limited to 7 days max.
+        ticker_obj = yf.Ticker(ticker)
+        df = ticker_obj.history(period="1d", interval="1m")
+        
+        if df.empty:
+            # Fallback to daily if minute data is unavailable (market closed/weekend)
+            df = ticker_obj.history(period="5d")
+            
+        if df.empty:
+            return None
+            
+        latest_price = df['Close'].iloc[-1]
+        
+        # Calculate change (vs previous close, or previous minute?)
+        # For "Realtime" feel, we want change vs yesterday's close usually.
+        # fast_info usually has 'regularMarketPreviousClose'
+        prev_close = ticker_obj.info.get('regularMarketPreviousClose')
+        
+        # Fallback if info is missing (common with yfinance sometimes)
+        if not prev_close and len(df) > 1:
+             prev_close = df['Close'].iloc[0] # Open of the day roughly
+             
+        if prev_close:
+            change_pct = ((latest_price - prev_close) / prev_close) * 100
+        else:
+            change_pct = 0.0
+            
+        return {
+            'price': latest_price,
+            'change_pct': change_pct
+        }
+        
+    except Exception as e:
+        print(f"Error fetching live data: {e}")
+        return None
