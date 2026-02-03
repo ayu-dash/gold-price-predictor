@@ -1,9 +1,13 @@
-yfinance
+flask
+flask-cors
 pandas
 numpy
 scikit-learn
+yfinance
+ta
 textblob
 feedparser
-ta
 requests
 beautifulsoup4
+transformers
+torch
