@@ -1,11 +1,16 @@
 """
 Data Collection Module for Gold Price Predictor.
-Handles fetching market data from yfinance and news sentiment from RSS/FinBERT.
+
+Handles fetching market data from yfinance, scraping physical gold prices,
+and retrieving news sentiment from Google News RSS.
 """
 
 import os
 import re
-from datetime import datetime, timedelta
+import pickle
+import time
+from datetime import datetime
+from typing import Optional, List, Dict, Tuple, Union, Any
 
 import feedparser
 import pandas as pd
@@ -13,28 +18,28 @@ import requests
 import yfinance as yf
 from bs4 import BeautifulSoup
 from textblob import TextBlob
-import pickle
-import time
-
-
-
+from requests.exceptions import RequestException
 
 
 # -----------------------------
 # Physical Price Scraper
 # -----------------------------
-def fetch_antam_price():
+def fetch_antam_price() -> Optional[int]:
     """
     Scrapes daily Antam gold price from emasantam.id.
-    Returns integer price (e.g., 3027000) or None if failed.
+    
+    Returns:
+        Optional[int]: The price per gram in IDR, or None if failed.
     """
     url = "https://emasantam.id/harga-emas-antam-harian/"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/91.0.4472.124 Safari/537.36"
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=5)
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -48,14 +53,23 @@ def fetch_antam_price():
             price_str = match.group(1).replace('.', '')
             return int(price_str)
             
+    except RequestException as e:
+        print(f"Network error fetching Antam price: {e}")
     except Exception as e:
-        print(f"Error fetching Antam price: {e}")
+        print(f"Error parsing Antam price: {e}")
     
     return None
 
-def fetch_market_data(period="max"):
+
+def fetch_market_data(period: str = "max") -> pd.DataFrame:
     """
     Fetches historical market data using yfinance.
+
+    Args:
+        period (str): Valid yfinance period (e.g., '1y', 'max').
+
+    Returns:
+        pd.DataFrame: Combined dataframe of all tickers. Or empty if failed.
     """
     print("[1/5] Fetching Market Data...")
     print(f"Fetching market data for period: {period}...")
@@ -81,6 +95,8 @@ def fetch_market_data(period="max"):
         try:
             ticker = yf.Ticker(ticker_symbol)
             p = 'max' if (period == 'max' and name == 'Gold') else period
+            
+            # Auto-adjust period if specific ticker fails? yfinance handles this well usually.
             hist = ticker.history(period=p)
 
             if hist.empty:
@@ -95,20 +111,32 @@ def fetch_market_data(period="max"):
             data_frames.append(df_ticker)
 
         except Exception as e:
-            print(f"Error fetching {name}: {e}")
+            print(f"Error fetching {name} ({ticker_symbol}): {e}")
 
     if not data_frames:
-        raise ValueError("No market data could be fetched.")
+        print("Error: No market data could be fetched from any source.")
+        return pd.DataFrame()
 
-    market_data = pd.concat(data_frames, axis=1)
-    market_data = market_data.ffill().dropna()
+    try:
+        market_data = pd.concat(data_frames, axis=1)
+        market_data = market_data.ffill().dropna()
+        return market_data
+    except Exception as e:
+        print(f"Error combining market data: {e}")
+        return pd.DataFrame()
 
-    return market_data
 
-
-def update_local_database(csv_path="gold_history.csv"):
+def update_local_database(csv_path: str = "gold_history.csv") -> pd.DataFrame:
     """
     Updates the local CSV database with new daily data.
+    
+    Checks last date in CSV and fetches incremental updates if valid.
+    
+    Args:
+        csv_path (str): Path to local CSV file.
+        
+    Returns:
+        pd.DataFrame: Full updated dataframe.
     """
     print("\n[Database] Checking for local history...")
 
@@ -116,21 +144,19 @@ def update_local_database(csv_path="gold_history.csv"):
 
     if os.path.exists(csv_path):
         try:
-            full_data = pd.read_csv(csv_path, index_col='Date',
-                                    parse_dates=True)
+            full_data = pd.read_csv(csv_path, index_col='Date', parse_dates=True)
             last_date = full_data.index.max()
             print(f"      Found existing database. Last date: {last_date.date()}")
-
-            # Fix: Only fetch if last_date is strictly less than today (date only)
+            
+            # Check if up to date (last date is yesterday or today)
             today = pd.Timestamp.now().normalize()
-            # If last entry is yesterday (or today), we are up to date for closed candles
             if last_date >= (today - pd.Timedelta(days=1)):
                 print("      Database is up to date (Last date is yesterday/today).")
                 return full_data
             
             start_date = last_date + pd.Timedelta(days=1)
             
-            # Double check to prevent fetching future OR today (incomplete)
+            # Prevent fetching future or incomplete 'today'
             if start_date >= today:
                  print("      Next start date is today/future. Skipping until market close.")
                  return full_data
@@ -139,7 +165,7 @@ def update_local_database(csv_path="gold_history.csv"):
             new_data = _fetch_incremental_data(start_date)
 
             if not new_data.empty:
-                # CRITICAL FIX: Ensure 'Gold' column exists and is not all NaN
+                # Validation
                 if 'Gold' not in new_data.columns:
                      print("      Warning: New data missing 'Gold' column. Aborting update.")
                 elif new_data['Gold'].isnull().all():
@@ -147,6 +173,7 @@ def update_local_database(csv_path="gold_history.csv"):
                 else:
                     print(f"      Append {len(new_data)} new rows.")
                     full_data = pd.concat([full_data, new_data])
+                    # Remove duplicates just in case
                     full_data = full_data[~full_data.index.duplicated(keep='last')]
                     full_data.to_csv(csv_path)
                     print("      Database updated and saved.")
@@ -154,11 +181,11 @@ def update_local_database(csv_path="gold_history.csv"):
                 print("      No new data available from markets.")
 
         except Exception as e:
-            print(f"      Error reading local DB: {e}. Re-fetching all.")
+            print(f"      Error reading/updating local DB: {e}. Re-fetching all.")
             full_data = pd.DataFrame()
 
     if full_data.empty:
-        print("      No local database found. Initializing...")
+        print("      No local database found or corrupted. Initializing...")
         full_data = fetch_market_data(period="max")
         if not full_data.empty and 'Gold' in full_data.columns:
             full_data.to_csv(csv_path)
@@ -169,9 +196,15 @@ def update_local_database(csv_path="gold_history.csv"):
     return full_data
 
 
-def _fetch_incremental_data(start_date):
+def _fetch_incremental_data(start_date: pd.Timestamp) -> pd.DataFrame:
     """
     Helper to fetch data from a specific start date.
+    
+    Args:
+        start_date (pd.Timestamp): Start date for yfinance query.
+        
+    Returns:
+        pd.DataFrame: Incremental data.
     """
     tickers = {
         'Gold': 'GC=F', 'USD_IDR': 'IDR=X', 'DXY': 'DX-Y.NYB', 'Oil': 'CL=F',
@@ -193,22 +226,31 @@ def _fetch_incremental_data(start_date):
                 if df.index.tz is not None:
                     df.index = df.index.tz_localize(None)
                 data_frames.append(df)
-        except Exception:
+        except Exception as e:
+            # Silent fail for individual tickers in incremental update is okay
             pass
 
     if not data_frames:
         return pd.DataFrame()
 
-    new_data = pd.concat(data_frames, axis=1)
-    new_data = new_data.ffill().dropna()
-    return new_data
+    try:
+        new_data = pd.concat(data_frames, axis=1)
+        new_data = new_data.ffill().dropna()
+        return new_data
+    except Exception:
+        return pd.DataFrame()
 
 
-
-
-def fetch_google_news_rss(query, days=7):
+def fetch_google_news_rss(query: str, days: int = 7) -> List[Dict[str, Any]]:
     """
     Fetch news from Google News RSS feed.
+    
+    Args:
+        query (str): Search query.
+        days (int): Lookback window in days.
+        
+    Returns:
+        List[Dict[str, Any]]: List of article dictionaries.
     """
     encoded_query = requests.utils.quote(query)
     rss_url = (
@@ -216,7 +258,7 @@ def fetch_google_news_rss(query, days=7):
         f"+when:{days}d&hl=en-US&gl=US&ceid=US:en"
     )
 
-    print(f"Fetching news for query: '{query}'...")
+    # print(f"Fetching news for query: '{query}'...")
 
     try:
         feed = feedparser.parse(rss_url)
@@ -229,7 +271,10 @@ def fetch_google_news_rss(query, days=7):
     for entry in feed.entries:
         dt = None
         if hasattr(entry, 'published_parsed'):
-            dt = datetime(*entry.published_parsed[:6])
+            try:
+                dt = datetime(*entry.published_parsed[:6])
+            except Exception:
+                pass
 
         if dt:
             articles.append({
@@ -241,9 +286,20 @@ def fetch_google_news_rss(query, days=7):
     return articles
 
 
-def fetch_news_sentiment(lookback_days=30, force_refresh=False):
+def fetch_news_sentiment(
+    lookback_days: int = 30, 
+    force_refresh: bool = False
+) -> Tuple[float, List[str], Dict[str, int]]:
     """
     Fetches news sentiment with 1-hour caching.
+    
+    Args:
+        lookback_days (int): Ignored currently (uses fixed query params).
+        force_refresh (bool): Ignore cache if True.
+        
+    Returns:
+        Tuple[float, List[str], Dict[str, int]]: 
+            Average sentiment score, Top headlines, Sentiment breakdown count.
     """
     cache_path = "models/last_sentiment.pkl"
     cache_expiry = 3600  # 1 hour
@@ -256,14 +312,17 @@ def fetch_news_sentiment(lookback_days=30, force_refresh=False):
                 cache_time = cache.get('timestamp', 0)
                 if (time.time() - cache_time) < cache_expiry:
                     print(f"      Using cached sentiment (Age: {int(time.time() - cache_time)}s)")
-                    return cache['avg_sentiment'], cache['headlines'], cache['sentiment_counts']
+                    return (
+                        cache['avg_sentiment'], 
+                        cache['headlines'], 
+                        cache['sentiment_counts']
+                    )
         except Exception as e:
             print(f"      Cache read failed: {e}")
 
     # 2. Real Fetch
-    print("\n[Sentiment] Fetching fresh news insights...")
+    print("\n[Sentiment] Fetching fresh news insights (this may take a moment)...")
     
-    # Expanded Queries (Global & Local)
     queries = [
         # GLOBAL (English)
         "Gold Price Forecast", "US Inflation Data", "Federal Reserve Rate Decisions",
@@ -289,16 +348,15 @@ def fetch_news_sentiment(lookback_days=30, force_refresh=False):
             region = 'ID' if is_indo else 'US'
             ceid = 'ID:id' if is_indo else 'US:en'
             
-            # Custom fetch for localization
             encoded = requests.utils.quote(q)
             rss_url = f"https://news.google.com/rss/search?q={encoded}&hl={lang}&gl={region}&ceid={ceid}"
             
             feed = feedparser.parse(rss_url)
             
-            for entry in feed.entries[:10]: # Increased limit to 10 per query (User Request)
+            for entry in feed.entries[:10]:
                 dt = None
                 if hasattr(entry, 'published_parsed'):
-                    dt = datetime(*entry.published_parsed[:6])
+                     dt = datetime(*entry.published_parsed[:6])
                 
                 if dt:
                     all_articles.append({
@@ -307,8 +365,9 @@ def fetch_news_sentiment(lookback_days=30, force_refresh=False):
                         'summary': entry.summary if hasattr(entry, 'summary') else ''
                     })
                     
-        except Exception as e:
-            print(f"Failed to fetch {q}: {e}")
+        except Exception:
+            # Skip individual query failures
+            continue
 
     # Deduplicate by title
     seen_titles = set()
@@ -319,74 +378,67 @@ def fetch_news_sentiment(lookback_days=30, force_refresh=False):
             seen_titles.add(a['title'])
             
     # Process Sentiment
-    sentiment_score = 0
     sentiment_counts = {'positive': 0, 'negative': 0, 'neutral': 0}
-    
-    print(f"      Analyzing {len(unique_articles)} news articles...")
+    avg_sentiment = 0.0
+    headlines = []
 
-    sentiment_counts = {'positive': 0, 'negative': 0, 'neutral': 0}
+    if unique_articles:
+        print(f"      Analyzing {len(unique_articles)} news articles...")
+        try:
+            from transformers import pipeline
+            # Suppress logs from transformers?
+            classifier = pipeline('sentiment-analysis', model='ProsusAI/finbert')
 
-    try:
-        from transformers import pipeline
-        classifier = pipeline('sentiment-analysis', model='ProsusAI/finbert')
+            scores = []
+            for article in unique_articles:
+                try:
+                    # Truncate to 512 tokens approx
+                    result = classifier(article['title'][:512])[0]
+                    label = result['label']
+                    score = result['score']
 
-        scores = []
-        for article in all_articles:
-            result = classifier(article['title'][:512])[0]
-            label = result['label']
-            score = result['score']
+                    sentiment_counts[label] += 1
 
-            sentiment_counts[label] += 1
+                    val = 0.0
+                    if label == 'positive':
+                        val = score
+                    elif label == 'negative':
+                        val = -score
+                    
+                    scores.append(val)
+                except Exception:
+                    pass
 
-            val = 0
-            if label == 'positive':
-                val = score
-            elif label == 'negative':
-                val = -score
+            if scores:
+                avg_sentiment = sum(scores) / len(scores)
 
-            scores.append(val)
+        except Exception as e:
+            print(f"Warning: FinBERT failed ({e}), falling back to TextBlob...")
+            # Fallback Logic
+            scores = []
+            for article in unique_articles:
+                text = article['title']
+                blob = TextBlob(text)
+                score = blob.sentiment.polarity
+                
+                # Simple keyword weighting
+                text_lower = text.lower()
+                if any(k in text_lower for k in ['recession', 'crash', 'plunge']):
+                     score -= 0.5
+                if any(k in text_lower for k in ['soar', 'record', 'rally']):
+                     score += 0.5
+                     
+                scores.append(score)
+                
+                if score > 0.1: sentiment_counts['positive'] += 1
+                elif score < -0.1: sentiment_counts['negative'] += 1
+                else: sentiment_counts['neutral'] += 1
 
-        avg_sentiment = sum(scores) / len(scores) if scores else 0
+            if scores:
+                avg_sentiment = sum(scores) / len(scores)
 
-    except Exception as e:
-        print(f"Warning: FinBERT failed ({e}), falling back to TextBlob...")
-        df = pd.DataFrame(all_articles)
-
-        def get_weighted_sentiment(text):
-            blob = TextBlob(text)
-            score = blob.sentiment.polarity
-            text_lower = text.lower()
-
-            keywords_en = ['recession', 'crash', 'soar', 'record',
-                           'plunge', 'crisis']
-            if any(k in text_lower for k in keywords_en):
-                score *= 1.5
-
-            keywords_id_neg = ['anjlok', 'resesi', 'krisis', 'turun',
-                               'melemah', 'rugi']
-            keywords_id_pos = ['naik', 'menguat', 'untung', 'rekor', 'bullish']
-
-            if any(k in text_lower for k in keywords_id_neg):
-                score -= 0.5
-            if any(k in text_lower for k in keywords_id_pos):
-                score += 0.5
-
-            return score
-
-        df['sentiment'] = df['title'].apply(get_weighted_sentiment)
-        avg_sentiment = df['sentiment'].mean()
-
-        sentiment_counts['positive'] = len(df[df['sentiment'] > 0.1])
-        sentiment_counts['negative'] = len(df[df['sentiment'] < -0.1])
-        sentiment_counts['neutral'] = (
-            len(df) - sentiment_counts['positive'] -
-            sentiment_counts['negative']
-        )
-
-    print(f"Analyzed {len(all_articles)} news items. "
-          f"Average Sentiment: {avg_sentiment:.4f}")
-
-    headlines = [a['title'] for a in all_articles[:5]]
+        print(f"Analyzed {len(unique_articles)} news items. Avg Sentiment: {avg_sentiment:.4f}")
+        headlines = [a['title'] for a in unique_articles[:5]]
 
     # 3. Save Cache
     try:

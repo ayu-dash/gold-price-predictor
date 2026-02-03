@@ -1,23 +1,44 @@
 """
 Model Training and Prediction Module.
+
+Handles training Gradient Boosting models, saving/loading artifacts,
+and generating recursive forecasts with dynamic feature simulation.
 """
 import os
 import pickle
+from typing import Tuple, List, Dict, Any, Optional, Union
+
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.model_selection import train_test_split
 
+# Local import for dynamic feature engineering
+from src.features import engineering
+
 HOLD_THRESHOLD = 0.005  # 0.5%
 
-def train_model(X, y):
-    """Trains a Gradient Boosting Regressor."""
+
+def train_model(
+    X: pd.DataFrame, 
+    y: pd.Series
+) -> Tuple[GradientBoostingRegressor, pd.DataFrame, pd.Series]:
+    """
+    Trains a Gradient Boosting Regressor on the provided data.
+
+    Args:
+        X (pd.DataFrame): Feature matrix.
+        y (pd.Series): Target vector (returns).
+
+    Returns:
+        Tuple[GradientBoostingRegressor, pd.DataFrame, pd.Series]: 
+            Trained model, X_test, and y_test sets.
+    """
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, shuffle=False
     )
     
-    # Using previous params
     model = GradientBoostingRegressor(
         n_estimators=500,
         learning_rate=0.05,
@@ -30,28 +51,72 @@ def train_model(X, y):
     model.fit(X_train, y_train)
     return model, X_test, y_test
 
-def evaluate_model(model, X_test, y_test):
-    """Evaluates the model."""
+
+def evaluate_model(
+    model: GradientBoostingRegressor, 
+    X_test: pd.DataFrame, 
+    y_test: pd.Series
+) -> Tuple[float, float, np.ndarray]:
+    """
+    Evaluates the model performance.
+
+    Args:
+        model (GradientBoostingRegressor): Trained model.
+        X_test (pd.DataFrame): Test features.
+        y_test (pd.Series): Test targets.
+
+    Returns:
+        Tuple[float, float, np.ndarray]: RMSE, MAE, and Predictions.
+    """
     predictions = model.predict(X_test)
     rmse = np.sqrt(mean_squared_error(y_test, predictions))
     mae = mean_absolute_error(y_test, predictions)
     return rmse, mae, predictions
 
-def save_model(model, path="models/gold_model.pkl"):
-    """Saves model to file."""
+
+def save_model(model: Any, path: str = "models/gold_model.pkl") -> None:
+    """
+    Saves the trained model to disk.
+
+    Args:
+        model (Any): The model object to save.
+        path (str): Destination path.
+    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'wb') as f:
         pickle.dump(model, f)
 
-def load_model(path="models/gold_model.pkl"):
-    """Loads model from file."""
+
+def load_model(path: str = "models/gold_model.pkl") -> Optional[Any]:
+    """
+    Loads a trained model from disk.
+
+    Args:
+        path (str): Path to the model file.
+
+    Returns:
+        Optional[Any]: The loaded model or None if not found.
+    """
     if not os.path.exists(path):
         return None
     with open(path, 'rb') as f:
         return pickle.load(f)
 
-def make_recommendation(current_price, predicted_price):
-    """Generates Buy/Sell/Hold signal."""
+
+def make_recommendation(
+    current_price: float, 
+    predicted_price: float
+) -> Tuple[str, float]:
+    """
+    Generates a Buy/Sell/Hold signal based on predicted change.
+
+    Args:
+        current_price (float): Current asset price.
+        predicted_price (float): Predicted asset price.
+
+    Returns:
+        Tuple[str, float]: Recommendation string and percentage change.
+    """
     change_pct = (predicted_price - current_price) / current_price
     
     if change_pct > HOLD_THRESHOLD:
@@ -61,89 +126,112 @@ def make_recommendation(current_price, predicted_price):
     else:
         return "HOLD", change_pct
 
-from src.features import engineering
 
-def recursive_forecast(model, last_known_features, current_price_usd, 
-                      current_rate_idr, days=5, historical_df=None):
+def recursive_forecast(
+    model: Any, 
+    last_known_features: pd.DataFrame, 
+    current_price_usd: float, 
+    current_rate_idr: float, 
+    days: int = 5, 
+    historical_df: Optional[pd.DataFrame] = None
+) -> List[Dict[str, Any]]:
     """
-    Generates multi-day forecast with dynamic feature updating.
-    Recalculates technical indicators (RSI/SMA/MACD) after each simulated day.
-    """
-    from src.features import engineering
+    Generates multi-day forecast with dynamic feature simulation.
     
+    Performs a 'Gaussian Random Walk' on macro features and recalculates
+    technical indicators (RSI, MACD) after every simulated step to ensure
+    features remain consistent with the simulated price.
+
+    Args:
+        model (Any): Trained regressor.
+        last_known_features (pd.DataFrame): The latest feature row.
+        current_price_usd (float): Latest Gold price in USD.
+        current_rate_idr (float): Latest USD/IDR rate.
+        days (int): Number of days to forecast.
+        historical_df (Optional[pd.DataFrame]): Buffer of historical data 
+                                                for indicator calculation.
+
+    Returns:
+        List[Dict[str, Any]]: List of daily forecast objects.
+    """
     forecasts = []
     
-    # Use historical data for indicator calculation buffer
+    # Initialize simulation dataframe
     if historical_df is None:
+        # Fallback if no history provided (indicators won't be dynamic)
         current_sim_df = last_known_features.copy()
     else:
         current_sim_df = historical_df.copy()
 
     current_sim_price = current_price_usd
+    
+    # Feature columns expected by the model
+    feature_cols = [
+        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
+        'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
+        'SMA_14', 'RSI', 'MACD', 'Sentiment'
+    ]
 
     for i in range(1, days + 1):
-        # 1. Ensure features are consistent with training
-        feature_cols = [
-            'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
-            'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
-            'SMA_14', 'RSI', 'MACD', 'Sentiment'
-        ]
-        
-        # Prepare input features from the last row of simulation df
-        next_features = current_sim_df.iloc[[-1]][feature_cols].copy()
+        # 1. Prepare Input Features
+        # Ensure we only use columns the model was trained on
+        available_cols = [c for c in feature_cols if c in current_sim_df.columns]
+        next_features = current_sim_df.iloc[[-1]][available_cols].copy()
 
-        # 2. Predict Return for the next day
+        # 2. Predict Return
         pred_ret = model.predict(next_features)[0]
         
-        # --- NEW REALISM LOGIC (CONSERVATIVE MODE) ---
-        # A. Global Dampener: Reduce model aggression by 50%.
-        # The model tends to be overconfident on trend continuance.
+        # --- REALISM LOGIC ---
+        # A. Dampening
         pred_ret = pred_ret * 0.5 
         
-        # B. Decay Confidence: The further out, the closer to 0 (neutral).
-        # We accelerate decay so long-term predictions flatten out faster.
+        # B. Decay
         decay_factor = 0.85 ** (i / 5) 
         pred_ret = pred_ret * decay_factor
         
-        # C. Add Organic Jitter: Reduced jitter for stability
+        # C. Jitter
         jitter = np.random.normal(0, 0.003) 
         pred_ret += jitter
         
-        # D. Clamp: Tighten max daily move to +/- 3% (Gold is stable asset)
+        # D. Clamp
         pred_ret = np.clip(pred_ret, -0.03, 0.03)
-        # ---------------------------------------------
-
+        # ---------------------
+        
         # 3. Update Simulated Price
         current_sim_price = current_sim_price * (1 + pred_ret)
         current_sim_price_idr = current_sim_price * current_rate_idr
         
-        # 4. Append new state to history
+        # 4. Create New Row for Next Iteration
         new_row = current_sim_df.iloc[[-1]].copy()
-        new_row.index = [pd.Timestamp.now() + pd.Timedelta(days=i)]
+        
+        # Shift date
+        last_date = new_row.index[0]
+        new_row.index = [last_date + pd.Timedelta(days=1)]
+        
+        # Update Gold Price
         new_row['Gold'] = current_sim_price
         
-        # --- TAMBAHAN BARU: Guncang sedikit fitur makro agar tidak statis ---
-        # Daftar fitur yang perlu diberi 'nafas' (pergerakan acak kecil)
-        macro_features = ['Oil', 'DXY', 'SP500', 'Silver', 'Copper', 'US10Y']
-        
+        # Update Macro Features (Gaussian Random Walk)
+        # Give them "life" so they aren't static
+        macro_features = ['Oil', 'DXY', 'SP500', 'Silver', 'Copper', 'US10Y', 'USD_IDR']
         for feat in macro_features:
             if feat in new_row.columns:
-                # Beri perubahan acak antara -1% sampai +1% setiap hari
-                macro_noise = np.random.uniform(-0.01, 0.01) 
-                new_row[feat] = new_row[feat] * (1 + macro_noise)
-        
-        # Sentiment juga bisa di-decay ke arah netral (0) pelan-pelan
+                # Random walk: +/- 0.5% volatility
+                noise = np.random.normal(0, 0.005)
+                new_row[feat] = new_row[feat] * (1 + noise)
+                
+        # Decay Sentiment slowly to neutral
         if 'Sentiment' in new_row.columns:
-             # Sentiment bergerak 10% kembali ke netral setiap hari
-            new_row['Sentiment'] = new_row['Sentiment'] * 0.9 
-        # --------------------------------------------------------------------
-        
+            new_row['Sentiment'] = new_row['Sentiment'] * 0.95
+
+        # Append new row to simulation buffer
         current_sim_df = pd.concat([current_sim_df, new_row])
         
-        # 5. Recalculate Indicators (The Critical Fix)
-        # This updates RSI, MACD, etc. based on the new price
+        # 5. Dynamic Indicator Recalculation
+        # This updates RSI, MACD, SMAs based on the NEW price and NEW history
         current_sim_df = engineering.add_technical_indicators(current_sim_df)
         
+        # Store Forecast
         forecasts.append({
             'Day': i,
             'Date': new_row.index[0].strftime('%Y-%m-%d'),

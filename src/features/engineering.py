@@ -1,16 +1,37 @@
 """
 Feature Engineering Module for Gold Price Predictor.
-Handles technical indicators and data preparation for training.
+
+Handles calculation of technical indicators (SMA, RSI, MACD, Bollinger Bands)
+and pre-processing of data for the machine learning model.
 """
+
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 import ta
 
 
-def add_technical_indicators(df):
+def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Adds technical indicators to the dataframe.
+    Adds technical indicators to the dataframe using the 'ta' library.
+    
+    Calculates:
+    - SMA (14, 50, 200)
+    - RSI (14)
+    - MACD
+    - Bollinger Bands (20, 2)
+    - Daily Returns
+    - Volatility Indices (normalized)
+
+    Args:
+        df (pd.DataFrame): Input dataframe containing 'Gold' column.
+
+    Returns:
+        pd.DataFrame: Dataframe with added indicator columns.
+    
+    Raises:
+        ValueError: If 'Gold' column is missing.
     """
     if df.empty:
         return df
@@ -39,7 +60,7 @@ def add_technical_indicators(df):
     # Daily Returns
     df['Gold_Returns'] = df['Gold'].pct_change()
 
-    # Normalize Volatility Indices
+    # Normalize Volatility Indices if present
     if 'VIX' in df.columns:
         df['VIX_Norm'] = df['VIX'] / 100.0
 
