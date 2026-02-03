@@ -31,9 +31,7 @@ ENV/
 .vscode/
 .idea/
 
-# Checkpoints & Data
-gold_history.csv
-models/
+# Checkpoints & Data]
 logs/
 instance/
 .pytest_cache/
