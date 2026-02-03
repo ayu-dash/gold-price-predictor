@@ -25,14 +25,31 @@ MODEL_PATH = "models/gold_model.pkl"
 trained_model = None
 
 
+import sys
+import subprocess
+
 def get_model():
-    """Lazy loads or returns the global trained model."""
+    """Lazy loads or returns the global trained model. Auto-retrains on failure."""
     global trained_model
     if trained_model is None:
         print(f"Loading model from {MODEL_PATH}...")
-        trained_model = predictor.load_model(MODEL_PATH)
+        try:
+            trained_model = predictor.load_model(MODEL_PATH)
+        except Exception as e:
+            print(f"Error loading model ({e}). Version mismatch likely. Retraining...")
+            try:
+                # Remove corrupt model
+                if os.path.exists(MODEL_PATH):
+                    os.remove(MODEL_PATH)
+                
+                # Retrain
+                subprocess.run([sys.executable, "main.py", "--days", "1"], check=True)
+                trained_model = predictor.load_model(MODEL_PATH)
+            except Exception as e2:
+                print(f"Critical Error: Failed to retrain model: {e2}")
+
         if trained_model is None:
-            print("Warning: No model found. Please run main.py first.")
+            print("Warning: No model found even after checks. Please run main.py peridocially.")
     return trained_model
 
 
