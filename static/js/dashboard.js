@@ -234,7 +234,7 @@ function setupPortfolioLogic() {
 // ----------------------------------------
 async function fetchAnalysis() {
     // Slider Value Updates
-    ['dxy', 'oil', 'idr'].forEach(key => {
+    ['dxy', 'oil', 'idr', 'us10y', 'silver', 'sp500'].forEach(key => {
         const slider = document.getElementById(`shift_${key}`);
         const label = document.getElementById(`v_${key}`);
         if (slider && label) {
@@ -479,6 +479,23 @@ function setupEventListeners() {
     const runBtn = document.getElementById('run_forecast');
     if (runBtn) runBtn.addEventListener('click', runForecast);
 
+    // Reset Simulation
+    const resetBtn = document.getElementById('reset_simulation');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            ['dxy', 'oil', 'idr', 'us10y', 'silver', 'sp500'].forEach(key => {
+                const slider = document.getElementById(`shift_${key}`);
+                const label = document.getElementById(`v_${key}`);
+                if (slider && label) {
+                    slider.value = 0;
+                    label.innerText = '0%';
+                }
+            });
+            // Optional: Auto-run forecast on reset
+            // runForecast();
+        });
+    }
+
     // Timeframe Buttons
     document.querySelectorAll('.tf-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -500,12 +517,15 @@ async function runForecast() {
     const shiftDxy = document.getElementById('shift_dxy').value;
     const shiftOil = document.getElementById('shift_oil').value;
     const shiftIdr = document.getElementById('shift_idr').value;
+    const shiftUs10y = document.getElementById('shift_us10y').value;
+    const shiftSilver = document.getElementById('shift_silver').value;
+    const shiftSp500 = document.getElementById('shift_sp500').value;
 
     const body = document.getElementById('forecast_body');
     body.innerHTML = '<tr><td colspan="6" class="text-center">Calculating future scenarios...</td></tr>';
 
     try {
-        const url = `/api/forecast?days=${days}&dxy_shift=${shiftDxy}&oil_shift=${shiftOil}&idr_shift=${shiftIdr}`;
+        const url = `/api/forecast?days=${days}&dxy_shift=${shiftDxy}&oil_shift=${shiftOil}&idr_shift=${shiftIdr}&us10y_shift=${shiftUs10y}&silver_shift=${shiftSilver}&sp500_shift=${shiftSp500}`;
         const response = await fetch(url);
         const data = await response.json();
 

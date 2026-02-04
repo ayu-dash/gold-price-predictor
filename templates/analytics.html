@@ -25,6 +25,21 @@
                 <span class="material-symbols-outlined" style="font-size: 1rem;">sync</span> Update Model
             </button>
         </div>
+        <!-- Training Progress Bar -->
+        <div id="training_progress_container"
+            style="display: none; padding: 15px 20px; border-bottom: 1px solid var(--glass-border);">
+            <div
+                style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.8rem; color: var(--text-muted);">
+                <span>Training Progress</span>
+                <span id="training_status_text">Initializing...</span>
+            </div>
+            <div
+                style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                <div id="training_progress_bar"
+                    style="width: 0%; height: 100%; background: var(--gold); transition: width 0.5s ease;"></div>
+            </div>
+        </div>
+
         <div class="scorecard-container">
             <div class="score-main" style="text-align: center; margin: 15px 0;">
                 <div class="score-value" id="metric_accuracy"
@@ -40,6 +55,14 @@
                     <span class="label">Directional Accuracy (Classifier):</span>
                     <span id="metric_clf_acc" class="value">--</span>
                 </div>
+                <div class="metric-item">
+                    <span class="label">Precision (True Positives):</span>
+                    <span id="metric_clf_prec" class="value">--</span>
+                </div>
+                <div class="metric-item">
+                    <span class="label">Recall (Sensitivity):</span>
+                    <span id="metric_clf_rec" class="value">--</span>
+                </div>
                 <div class="metric-item"
                     style="border-top: 1px solid var(--glass-border); padding-top: 10px; margin-top: 10px;">
                     <span class="label">Median Model (Main) MAE:</span>
@@ -52,6 +75,10 @@
                 <div class="metric-item">
                     <span class="label">High Model (Resistance) MAE:</span>
                     <span id="metric_mae_high" class="value">--</span>
+                </div>
+                <div class="metric-item">
+                    <span class="label">Neural Network (Deep Learning) MAE:</span>
+                    <span id="metric_mae_nn" class="value text-gold">--</span>
                 </div>
                 <div class="metric-item" style="border-top: 1px solid var(--glass-border); padding-top: 10px;">
                     <span class="label">Data Samples Covered:</span>
@@ -92,5 +119,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+<script src="{{ url_for('static', filename='js/analytics.js', v='2.0') }}"></script>
 {% endblock %}

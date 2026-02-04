@@ -4,28 +4,86 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchModelMetrics();
 
     // 2. Button Listeners
+    // 2. Button Listeners (With Polling Status)
     const retrainBtn = document.getElementById('retrain_btn');
+    const progressContainer = document.getElementById('training_progress_container');
+    const progressBar = document.getElementById('training_progress_bar');
+    const statusText = document.getElementById('training_status_text');
+
     if (retrainBtn) {
         retrainBtn.addEventListener('click', async () => {
             if (!confirm("Start model training? This process runs in the background and takes about 2-3 minutes.")) return;
 
+            // UI Reset
             retrainBtn.disabled = true;
-            retrainBtn.innerHTML = '<span class="spinner" style="width:12px; height:12px; border-width:2px; display:inline-block; margin-right:5px;"></span> Training...';
+            if (progressContainer) progressContainer.style.display = 'block';
+            if (progressBar) progressBar.style.width = '0%';
+            if (statusText) statusText.innerText = "Requesting start...";
 
             try {
+                // Start Training
                 const res = await fetch('/api/retrain', { method: 'POST' });
                 const data = await res.json();
-                alert(data.message);
+
+                if (data.status === 'started') {
+                    // Poll Status
+                    pollTrainingStatus();
+                } else {
+                    alert("Error: " + data.message);
+                    resetTrainingUI();
+                }
             } catch (err) {
                 alert("Failed to start training: " + err);
-            } finally {
-                // Re-enable after 60 seconds (prevents spamming while background process runs)
-                setTimeout(() => {
-                    retrainBtn.disabled = false;
-                    retrainBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 1rem;">sync</span> Update Model';
-                }, 60000);
+                resetTrainingUI();
             }
         });
+    }
+
+    function resetTrainingUI() {
+        retrainBtn.disabled = false;
+        retrainBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 1rem;">sync</span> Update Model';
+        if (progressContainer) progressContainer.style.display = 'none';
+    }
+
+    function pollTrainingStatus() {
+        let percentage = 0;
+
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch('/api/training_status');
+                const state = await res.json();
+
+                // Update UI Text
+                if (statusText) statusText.innerText = state.message;
+
+                // Fake Progress Bar Logic (up to 90%)
+                if (percentage < 90) {
+                    percentage += 2; // Slow increment
+                    if (progressBar) progressBar.style.width = `${percentage}%`;
+                }
+
+                if (state.status === 'done') {
+                    clearInterval(interval);
+                    if (progressBar) progressBar.style.width = '100%';
+                    if (statusText) statusText.innerText = "Training Complete!";
+
+                    setTimeout(() => {
+                        resetTrainingUI();
+                        // Refetch metrics
+                        fetchModelMetrics();
+                        alert("Model updated successfully! Metrics refreshed.");
+                    }, 1000);
+
+                } else if (state.status === 'error') {
+                    clearInterval(interval);
+                    alert("Training Failed: " + state.message);
+                    resetTrainingUI();
+                }
+
+            } catch (e) {
+                console.error("Polling error", e);
+            }
+        }, 2000); // Check every 2 seconds
     }
 
     // Set current date
@@ -55,7 +113,15 @@ async function fetchModelMetrics() {
                 document.getElementById('metric_mae_med').innerText = m.median.mae.toFixed(4);
                 document.getElementById('metric_mae_low').innerText = m.low.mae.toFixed(4);
                 document.getElementById('metric_mae_high').innerText = m.high.mae.toFixed(4);
+                if (m.neural_network) {
+                    document.getElementById('metric_mae_nn').innerText = m.neural_network.mae.toFixed(4);
+                }
                 document.getElementById('metric_clf_acc').innerText = `${(m.classifier.accuracy * 100).toFixed(1)}%`;
+
+                if (m.classifier.precision !== undefined) {
+                    document.getElementById('metric_clf_prec').innerText = `${(m.classifier.precision * 100).toFixed(1)}%`;
+                    document.getElementById('metric_clf_rec').innerText = `${(m.classifier.recall * 100).toFixed(1)}%`;
+                }
 
                 // Big Accuracy Score (Use Median MAE)
                 const errorMargin = (m.median.mae * 100);

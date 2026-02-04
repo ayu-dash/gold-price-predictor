@@ -45,10 +45,11 @@ def train_model(
     
     model = GradientBoostingRegressor(
         n_estimators=1000,
-        learning_rate=0.05,
-        max_depth=6,
+        learning_rate=0.03,
+        max_depth=4, # Reduced from 6 to prevent overfitting
         loss=loss_type,
         alpha=quantile if quantile is not None else 0.9,
+        subsample=0.8, # Stochastic Gradient Boosting
         validation_fraction=0.1,
         n_iter_no_change=20,
         random_state=42
@@ -58,45 +59,100 @@ def train_model(
     return model, X_test, y_test
 
 
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+from sklearn.compose import TransformedTargetRegressor
 
-def train_classifier(
+def train_neural_network(
     X: pd.DataFrame, 
     y: pd.Series
-) -> Tuple[GradientBoostingClassifier, float]:
+) -> Tuple[Any, float, float]:
     """
-    Trains a Gradient Boosting Classifier to predict Price Direction (Up/Down).
-    
-    Args:
-        X (pd.DataFrame): Feature matrix.
-        y (pd.Series): Target vector (1 for Up, 0 for Down/Flat).
-
-    Returns:
-        Tuple[GradientBoostingClassifier, float]: Trained model and accuracy score.
+    Trains a Multi-Layer Perceptron (Deep Neural Network).
+    Uses TransformedTargetRegressor to scale the TARGET variable, which is crucial 
+    for NNs to converge on small number ranges (like returns).
     """
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, shuffle=False
     )
     
-    clf = GradientBoostingClassifier(
-        n_estimators=500,
-        learning_rate=0.05,
-        max_depth=4,
-        random_state=42
+    # 1. Inner Pipeline: Scale Inputs -> MLP
+    inner_model = make_pipeline(
+        StandardScaler(),
+        MLPRegressor(
+            hidden_layer_sizes=(128, 64), # Increased capacity
+            activation='relu',
+            solver='adam',
+            alpha=0.0001,
+            learning_rate_init=0.001, # Explicit LR
+            max_iter=2000, # More iterations
+            early_stopping=True,
+            validation_fraction=0.1,
+            random_state=42
+        )
     )
     
-    clf.fit(X_train, y_train)
+    # 2. Outer Wrapper: Scale Targets (y)
+    model = TransformedTargetRegressor(
+        regressor=inner_model,
+        transformer=StandardScaler()
+    )
     
-    # Calculate accuracy
-    preds = clf.predict(X_test)
+    model.fit(X_train, y_train)
+    
+    # Evaluate immediately
+    preds = model.predict(X_test)
+    rmse = np.sqrt(mean_squared_error(y_test, preds))
+    mae = mean_absolute_error(y_test, preds)
+    
+    return model, rmse, mae
+
+
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score
+
+def train_classifier(
+    X: pd.DataFrame, 
+    y: pd.Series
+) -> Tuple[Any, float, float, float]:
+    """
+    Trains a Neural Network Classifier (MLP) to predict Price Direction.
+    Replaces Random Forest which was either too lazy (100% recall) or too strict (6% recall).
+    """
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, shuffle=False
+    )
+    
+    # Use the same "BRAIN" architecture that worked for the Regressor
+    model = make_pipeline(
+        StandardScaler(),
+        MLPClassifier(
+            hidden_layer_sizes=(128, 64),
+            activation='relu',
+            solver='adam',
+            alpha=0.0001,
+            learning_rate_init=0.001,
+            max_iter=1000,
+            early_stopping=True,
+            validation_fraction=0.1,
+            random_state=42
+        )
+    )
+    
+    model.fit(X_train, y_train)
+    
+    # Calculate metrics
+    preds = model.predict(X_test)
     acc = accuracy_score(y_test, preds)
+    prec = precision_score(y_test, preds, zero_division=0)
+    rec = recall_score(y_test, preds, zero_division=0)
     
-    return clf, acc
+    return model, acc, prec, rec
 
 
 def get_classification_confidence(
-    model: GradientBoostingClassifier,
+    model: Any,
     X_input: pd.DataFrame
 ) -> Tuple[str, float]:
     """

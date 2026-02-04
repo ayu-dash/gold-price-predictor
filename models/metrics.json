@@ -1,7 +1,28 @@
 {
-    "timestamp": "2026-02-04 20:20:07",
-    "mae": 0.00776,
-    "rmse": 0.011358,
+    "timestamp": "2026-02-04 21:01:51",
+    "models": {
+        "median": {
+            "mae": 0.007757,
+            "rmse": 0.011404
+        },
+        "low": {
+            "mae": 0.020775,
+            "rmse": 0.023188
+        },
+        "high": {
+            "mae": 0.014655,
+            "rmse": 0.017671
+        },
+        "classifier": {
+            "accuracy": 0.4615,
+            "precision": 0.0,
+            "recall": 0.0
+        },
+        "neural_network": {
+            "mae": 0.009899,
+            "rmse": 0.013894
+        }
+    },
     "train_samples": 3528,
     "test_samples": 882,
     "features_used": [

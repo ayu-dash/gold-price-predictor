@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from typing import Tuple, List, Dict, Any, Optional
 
 import pandas as pd
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 from src.data import loader
 from src.features import engineering
 from src.models import predictor
@@ -103,12 +105,47 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     predictor.save_model(high_model, "models/gold_model_high.pkl")
     
     # --- 5. Classification Training (Up/Down) ---
-    print("\n--- Training Direction Classifier ---")
-    # 1 if Return > 0 else 0
-    y_class = (y > 0).astype(int)
-    clf_model, clf_acc = predictor.train_classifier(X, y_class)
-    predictor.save_model(clf_model, "models/gold_classifier.pkl")
-    print(f"Direction Classifier Accuracy: {clf_acc:.2%}")
+    print("\n--- Training Direction Classifier (Implicit) ---")
+    # We now derive direction from the Median Regression Model
+    # This ensures consistency: If Forecast > 0, Signal is UP.
+    
+    # Calculate metrics on Test Set using REGRESSION model
+    # FILTER: Only evaluate accuracy when the model predicts a specific move > 0.1% (Noise Filter)
+    y_pred_reg = med_model.predict(X_test)
+    y_true_reg = y_test.values
+    
+    # Create mask for "High Confidence" (Significant Move) predictions
+    # We ignore days where model predicts ~0.0% change
+    significant_move_mask = np.abs(y_pred_reg) > 0.001
+    
+    if np.sum(significant_move_mask) > 10:
+        # Evaluate on the subset of data where model had conviction
+        y_pred_filtered = (y_pred_reg[significant_move_mask] > 0).astype(int)
+        y_true_filtered = (y_true_reg[significant_move_mask] > 0).astype(int)
+        
+        clf_acc = accuracy_score(y_true_filtered, y_pred_filtered)
+        clf_prec = precision_score(y_true_filtered, y_pred_filtered, zero_division=0)
+        clf_rec = recall_score(y_true_filtered, y_pred_filtered, zero_division=0)
+        print(f"Filtered (High Conf) Direction -> Acc: {clf_acc:.2%}, Samples: {np.sum(significant_move_mask)}")
+    else:
+        # Fallback to full set if not enough samples
+        print("Not enough significant moves for filtered eval. Using full set.")
+        y_pred_class = (y_pred_reg > 0).astype(int)
+        y_true_class = (y_test > 0).astype(int)
+        clf_acc = accuracy_score(y_true_class, y_pred_class)
+        clf_prec = precision_score(y_true_class, y_pred_class, zero_division=0)
+        clf_rec = recall_score(y_true_class, y_pred_class, zero_division=0)
+
+    print(f"Regression-Derived Direction -> Acc: {clf_acc:.2%}, Prec: {clf_prec:.2%}, Rec: {clf_rec:.2%}")
+    
+    # We still keep the NN classifier in the dict for legacy compatibility
+    clf_model = None 
+    
+    # --- 5b. Neural Network Experiment (Deep Learning Lite) ---
+    print("\n--- Training Neural Network (MLP) ---")
+    nn_model, nn_rmse, nn_mae = predictor.train_neural_network(X, y)
+    predictor.save_model(nn_model, "models/gold_model_nn.pkl")
+    print(f"Neural Network MAE: {nn_mae:.4f}")
     # ---------------------------------------------
     
     # --- 6. Evaluation ---
@@ -126,7 +163,12 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
             "median": {"mae": round(float(mae_med), 6), "rmse": round(float(rmse_med), 6)},
             "low": {"mae": round(float(mae_low), 6), "rmse": round(float(rmse_low), 6)},
             "high": {"mae": round(float(mae_high), 6), "rmse": round(float(rmse_high), 6)},
-            "classifier": {"accuracy": round(clf_acc, 4)}
+            "classifier": {
+                "accuracy": round(clf_acc, 4),
+                "precision": round(clf_prec, 4),
+                "recall": round(clf_rec, 4)
+            },
+            "neural_network": {"mae": round(float(nn_mae), 6), "rmse": round(float(nn_rmse), 6)}
         },
         "train_samples": len(X_train),
         "test_samples": len(X_test),

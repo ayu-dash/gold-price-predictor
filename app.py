@@ -188,14 +188,40 @@ def get_prediction():
 
     predicted_usd = current_usd * (1 + predicted_return)
 
-    # Classification (Confidence)
-    conf_direction = "N/A"
-    conf_score = 0.0
-    if isinstance(model_obj, dict) and 'clf' in model_obj:
-        conf_direction, conf_score = predictor.get_classification_confidence(
-            model_obj['clf'], latest_row
-        )
-        conf_score = round(conf_score * 100, 1) # Convert to %
+    # Classification (Confidence via Quantile Regression)
+    # We use the spread between Low (5%) and High (95%) to estimate probability of > 0
+    import scipy.stats as stats
+    
+    pred_med = predicted_return
+    pred_low = 0.0
+    pred_high = 0.0
+    
+    if isinstance(model_obj, dict):
+        pred_low = model_obj['low'].predict(latest_row)[0]
+        pred_high = model_obj['high'].predict(latest_row)[0]
+    else:
+        # Fallback if no ensemble
+        pred_low = pred_med - 0.01 
+        pred_high = pred_med + 0.01
+
+    conf_direction = "UP" if pred_med > 0 else "DOWN"
+    
+    # Calculate Z-score for 0
+    # spread = (High - Low) covers 90% confidence (approx 3.29 sigmas)
+    spread = pred_high - pred_low
+    if spread <= 0: spread = 0.0001 # Avoid div by zero
+    
+    sigma = spread / 3.29
+    z_score = abs(pred_med) / sigma
+    
+    # Probability that the true value is on the same side of 0 as the median
+    # CDF(z_score) gives 0.5 to 1.0
+    probability = stats.norm.cdf(z_score)
+    
+    conf_score = round(probability * 100, 1)
+    
+    # Log debug
+    print(f"DEBUG: Med={pred_med*100:.2f}%, Low={pred_low*100:.2f}%, High={pred_high*100:.2f}%, Z={z_score:.2f}, Conf={conf_score}%")
 
     # Signal
     rsi_val = latest_row['RSI'].iloc[0] if 'RSI' in latest_row.columns else 50.0
@@ -353,9 +379,6 @@ def get_forecast():
         return jsonify({"error": "Model not trained yet"}), 503
 
     days = request.args.get('days', default=7, type=int)
-    dxy_shift = request.args.get('dxy_shift', default=0, type=float) / 100
-    oil_shift = request.args.get('oil_shift', default=0, type=float) / 100
-    idr_shift = request.args.get('idr_shift', default=1, type=float) # idr is special as it's rate
 
     market_data = loader.update_local_database()
     df = engineering.add_technical_indicators(market_data)
@@ -399,12 +422,23 @@ def get_forecast():
     # -------------------
 
     # Handle USD/IDR shift properly (it's a percentage shift from the live rate)
-    manual_idr_rate = current_idr_rate * (1 + (request.args.get('idr_shift', default=0, type=float)/100))
+    idr_shift_val = request.args.get('idr_shift', default=0, type=float) / 100
+    manual_idr_rate = current_idr_rate * (1 + idr_shift_val)
+
+    # Collect all shifts
+    shifts = {
+        'DXY': request.args.get('dxy_shift', default=0, type=float) / 100,
+        'Oil': request.args.get('oil_shift', default=0, type=float) / 100,
+        'SP500': request.args.get('sp500_shift', default=0, type=float) / 100,
+        'Silver': request.args.get('silver_shift', default=0, type=float) / 100,
+        'US10Y': request.args.get('us10y_shift', default=0, type=float) / 100,
+        'USD_IDR': idr_shift_val # Pass to recursive_forecast as well for intra-step consistency
+    }
 
     forecast_data = predictor.recursive_forecast(
         model_obj, latest_features, current_usd, manual_idr_rate, days=days,
         historical_df=history_buffer,
-        shifts={'DXY': dxy_shift, 'Oil': oil_shift}
+        shifts=shifts
     )
 
     grams_per_oz = 31.1035
@@ -611,12 +645,29 @@ def start_scheduler():
     thread.start()
     print("[Scheduler] Background service started.")
 
+# Global Training State
+TRAINING_STATE = {
+    "status": "idle", # or 'running'
+    "message": "",
+    "timestamp": 0
+}
+
+@app.route('/api/training_status')
+def get_training_status():
+    return jsonify(TRAINING_STATE)
+
 @app.route('/api/retrain', methods=['POST'])
 def retrain_model():
     """Manually triggers model retraining."""
     def run_training():
+        global TRAINING_STATE
+        TRAINING_STATE['status'] = 'running'
+        TRAINING_STATE['message'] = 'Starting training process...'
+        TRAINING_STATE['timestamp'] = int(time.time())
+        
         print("[Manual] Starting manual model training...")
         try:
+             TRAINING_STATE['message'] = 'Running main.py...'
              result = subprocess.run(
                 [sys.executable, "main.py", "--days", "1"],
                 capture_output=True,
@@ -630,15 +681,26 @@ def retrain_model():
                  global trained_model
                  trained_model = None
                  print("[Manual] Cache cleared. New model ready.")
+                 
+                 TRAINING_STATE['status'] = 'done'
+                 TRAINING_STATE['message'] = 'Training completed successfully.'
              else:
                  print("\n[Manual] Training Failed!")
                  print(result.stderr)
+                 TRAINING_STATE['status'] = 'error'
+                 TRAINING_STATE['message'] = f"Training failed: {result.stderr[-50:]}"
+                 
         except Exception as e:
             print(f"[Manual] Error: {e}")
+            TRAINING_STATE['status'] = 'error'
+            TRAINING_STATE['message'] = str(e)
+
+    if TRAINING_STATE['status'] == 'running':
+         return jsonify({"status": "error", "message": "Training already in progress."})
 
     # Run in background to not block response
     threading.Thread(target=run_training).start()
-    return jsonify({"status": "Training started", "message": "Model update in progress. Check logs or wait 2-3 mins."})
+    return jsonify({"status": "started", "message": "Training started."})
 
 # Helper function for history data
 def fetch_and_prepare_data():
