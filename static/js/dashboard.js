@@ -92,11 +92,11 @@ function updatePriceDisplay(data) {
     // If we have a stored forecast return, update the target price and signal dynamically
     // so they stay consistent with the moving real-time price.
     if (window.lastForecastPct !== undefined) {
-        reassessSignal(newPrice, window.lastForecastPct);
+        reassessSignal(newPrice, window.lastForecastPct, window.lastConfDirection, window.lastConfScore);
     }
 }
 
-function reassessSignal(currentPriceIdr, forecastPct) {
+function reassessSignal(currentPriceIdr, forecastPct, confDirection = null, confScore = 0) {
     // ForecastPct is in percent (e.g. 1.2 for 1.2%)
     const predictedPrice = currentPriceIdr * (1 + (forecastPct / 100));
     const targetEl = document.getElementById('target_price');
@@ -105,23 +105,43 @@ function reassessSignal(currentPriceIdr, forecastPct) {
 
     // Update Target Text
     if (targetEl) {
-        targetEl.innerText = `Target: Rp ${Math.round(predictedPrice).toLocaleString('id-ID')}`;
+        targetEl.innerText = `Next-Day Target: Rp ${Math.round(predictedPrice).toLocaleString('id-ID')}`;
     }
 
     // Recalculate Signal (Threshold 0.5% = 0.5)
     let recommendation = 'HOLD';
     if (forecastPct > 0.5) recommendation = 'BUY';
     else if (forecastPct < -0.5) recommendation = 'SELL';
-
-    if (signalEl) signalEl.innerText = recommendation;
-
-    // Update Light
-    if (lightEl) {
-        lightEl.className = 'status-light'; // Reset
-        if (recommendation === 'BUY') lightEl.classList.add('green');
-        else if (recommendation === 'SELL') lightEl.classList.add('red');
-        else lightEl.classList.add('yellow');
+    else if (confScore > 65.0) {
+        if (confDirection === 'UP' && forecastPct > 0.01) recommendation = 'ACCUMULATE';
+        else if (confDirection === 'DOWN' && forecastPct < -0.01) recommendation = 'REDUCE';
     }
+
+    if (signalEl) {
+        signalEl.innerText = recommendation;
+        // Apply coloring based on signal
+        signalEl.className = 'signal-value'; // Reset
+        if (recommendation === 'BUY' || recommendation === 'ACCUMULATE') signalEl.classList.add('text-gold');
+        else if (recommendation === 'SELL' || recommendation === 'REDUCE') signalEl.classList.add('text-red');
+        else signalEl.classList.add('text-white');
+    }
+
+    // Generate Logic Summary
+    let logicText = '';
+    if (recommendation === 'BUY') {
+        logicText = `AI mendeteksi potensi rally signifikan (>0.5%). Waktu yang tepat untuk <strong>Enter Market</strong> atau menambah posisi.`;
+    } else if (recommendation === 'SELL') {
+        logicText = `Harga diperkirakan turun tajam (>0.5%). Disarankan untuk <strong>Exit Market</strong> atau mengamankan keuntungan (Take Profit).`;
+    } else if (recommendation === 'ACCUMULATE') {
+        logicText = `Sinyal kenaikan stabil dengan keyakinan tinggi (${confScore}%). Disarankan <strong>Cicil Beli</strong> secara bertahap.`;
+    } else if (recommendation === 'REDUCE') {
+        logicText = `Sinyal penurunan stabil dengan keyakinan tinggi (${confScore}%). Disarankan <strong>Kurangi Posisi</strong> untuk meminimalkan risiko.`;
+    } else {
+        logicText = `Pasar cenderung netral atau dalam fase konsolidasi. Strategi terbaik saat ini adalah <strong>Wait & See</strong>.`;
+    }
+
+    const logicEl = document.getElementById('signal_logic_text');
+    if (logicEl) logicEl.innerHTML = logicText;
 }
 
 function updateSpreadAndPortfolio(currentPrice) {
@@ -229,6 +249,8 @@ async function updateDashboardData() {
         window.lastPhysicalPrice = data.physical_price_idr;
         // Store forecast return for realtime sync
         window.lastForecastPct = data.change_pct;
+        window.lastConfDirection = data.confidence_direction;
+        window.lastConfScore = data.confidence_score;
 
         // --- SIGNAL DISCREPANCY FIX ---
         // Explicitly update the main price display to match the "Current Price" 
@@ -266,7 +288,7 @@ function updateSignalCard(data) {
 
     // Display Target + Confidence
     // Display Target
-    targetEl.innerText = `Target: Rp ${data.predicted_price_idr_gram.toLocaleString()}`;
+    targetEl.innerText = `Next-Day Target: Rp ${data.predicted_price_idr_gram.toLocaleString('id-ID')}`;
 
     // Display Confidence (Create element if missing)
     let confEl = document.getElementById('signal_conf');
@@ -298,6 +320,9 @@ function updateSignalCard(data) {
         else if (data.recommendation === 'SELL' && change < -1.0) lightEl.classList.add('red');
         else lightEl.classList.add('yellow');
     }
+
+    // Update Conclusion
+    reassessSignal(data.current_price_idr_gram, data.change_pct, data.confidence_direction, data.confidence_score);
 }
 
 function updateSentimentCard(data) {

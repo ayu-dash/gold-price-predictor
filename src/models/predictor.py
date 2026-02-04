@@ -177,15 +177,11 @@ def make_recommendation(
 ) -> Tuple[str, float]:
     """
     Generates a Buy/Sell/Hold signal based on predicted change & confidence.
-
-    Args:
-        current_price (float): Current asset price.
-        predicted_price (float): Predicted asset price.
-        conf_direction (str): "UP" or "DOWN".
-        conf_score (float): Confidence percentage (0-100).
-
-    Returns:
-        Tuple[str, float]: Recommendation string and percentage change.
+    
+    Logic:
+    - Change > 0.5% -> BUY / SELL
+    - High Confidence (>65%) + Same Side Change -> ACCUMULATE / REDUCE
+    - Otherwise -> HOLD
     """
     change_pct = (predicted_price - current_price) / current_price
     
@@ -196,14 +192,14 @@ def make_recommendation(
         return "SELL", change_pct
     
     # nuanced signals (Confidence driven for small moves)
-    # If standard logic says HOLD, but we are very sure of direction:
-    if conf_score and conf_score > 60.0:
-        if conf_direction == "UP" and change_pct > 0:
+    # If the predicted change is tiny, but the classifier is very sure of direction:
+    if conf_score and conf_score > 65.0:
+        if conf_direction == "UP" and change_pct > 0.001:
             return "ACCUMULATE", change_pct
-        elif conf_direction == "DOWN" and change_pct < 0:
+        elif conf_direction == "DOWN" and change_pct < -0.001:
             return "REDUCE", change_pct
             
-    return "WAIT", change_pct
+    return "HOLD", change_pct
 
 
 def recursive_forecast(

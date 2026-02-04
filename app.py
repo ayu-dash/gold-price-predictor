@@ -10,7 +10,7 @@ import pandas as pd
 from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 
-from src.data import loader
+from src.data import loader, signal_logger
 from src.features import engineering
 from src.models import predictor
 
@@ -194,6 +194,16 @@ def get_prediction():
         conf_score=conf_score
     )
 
+    # Log the signal persistently
+    signal_logger.log_daily_signal(
+        date=(pd.Timestamp.now() + pd.Timedelta(days=1)).strftime('%Y-%m-%d'),
+        price_usd=current_usd,
+        predicted_usd=predicted_usd,
+        signal=rec,
+        confidence_score=conf_score,
+        confidence_direction=conf_direction
+    )
+
     # Local Specs
     grams_per_oz = 31.1035
     price_gram_idr = (current_usd * current_idr_rate) / grams_per_oz
@@ -354,10 +364,52 @@ def signals():
 
 @app.route("/api/signals_history")
 def get_signals_history():
-    """Returns the CSV log of signals."""
+    """Returns the CSV log of signals with calculated outcomes."""
     from src.data import signal_logger
-    df = signal_logger.get_signal_history()
-    return jsonify(df.to_dict(orient='records'))
+    signals_df = signal_logger.get_signal_history()
+    
+    if signals_df.empty:
+        return jsonify([])
+
+    # Load actual history for comparison
+    if os.path.exists(CSV_PATH):
+        history_df = pd.read_csv(CSV_PATH)
+        history_df['Date'] = pd.to_datetime(history_df['Date']).dt.strftime('%Y-%m-%d')
+        actual_prices = history_df.set_index('Date')['Gold'].to_dict()
+    else:
+        actual_prices = {}
+
+    # Define outcome logic
+    now_str = pd.Timestamp.now().strftime('%Y-%m-%d')
+    
+    outcomes = []
+    for _, row in signals_df.iterrows():
+        target_date = row['Date']
+        signal_price = row['Price_USD']
+        predicted_price = row['Predicted_USD']
+        
+        actual_price = actual_prices.get(target_date)
+        
+        if actual_price:
+            predicted_diff = predicted_price - signal_price
+            actual_diff = actual_price - signal_price
+            
+            # Outcome based on direction matching
+            if predicted_diff * actual_diff > 0:
+                outcome = "Correct"
+            elif abs(predicted_diff) < 0.1 and abs(actual_diff) < 0.1: # Neutral match
+                outcome = "Correct"
+            else:
+                outcome = "Wrong"
+        elif target_date > now_str:
+            outcome = "Pending"
+        else:
+            outcome = "Expired" # Date passed but no history found (e.g. weekend)
+            
+        outcomes.append(outcome)
+        
+    signals_df['Outcome'] = outcomes
+    return jsonify(signals_df.to_dict(orient='records'))
 
 
 @app.route("/api/yearly_stats")
