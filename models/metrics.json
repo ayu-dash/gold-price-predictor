@@ -1,7 +1,7 @@
 {
-    "timestamp": "2026-02-04 17:51:57",
-    "mae": 0.00793,
-    "rmse": 0.011565,
+    "timestamp": "2026-02-04 18:13:10",
+    "mae": 0.007899,
+    "rmse": 0.011509,
     "train_samples": 3527,
     "test_samples": 882,
     "features_used": [
@@ -17,9 +17,12 @@
         "US10Y",
         "Nikkei",
         "DAX",
+        "SMA_7",
         "SMA_14",
         "RSI",
+        "RSI_7",
         "MACD",
+        "BB_Width",
         "Sentiment"
     ]
 }

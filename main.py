@@ -65,7 +65,7 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     features = [
         'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
         'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_14', 'RSI', 'MACD', 'Sentiment'
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
     
     # Filter available features
@@ -143,7 +143,7 @@ def run_prediction(
     features = [
         'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
         'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_14', 'RSI', 'MACD', 'Sentiment'
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
     valid_features = [f for f in features if f in df.columns]
     

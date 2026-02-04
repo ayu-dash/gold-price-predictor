@@ -137,7 +137,7 @@ def get_prediction():
     features = [
         'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
         'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_14', 'RSI', 'MACD', 'Sentiment'
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
     available_features = [f for f in features if f in df.columns]
 
@@ -278,7 +278,7 @@ def get_forecast():
     features = [
         'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
         'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_14', 'RSI', 'MACD', 'Sentiment'
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
     available_features = [f for f in features if f in df.columns]
     # Fetch LIVE data for t0 (Start of recursive forecast)

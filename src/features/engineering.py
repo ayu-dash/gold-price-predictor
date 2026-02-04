@@ -40,12 +40,14 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("Gold price column missing in dataframe")
 
     # Simple Moving Averages
+    df['SMA_7'] = ta.trend.sma_indicator(df['Gold'], window=7) # FAST
     df['SMA_14'] = ta.trend.sma_indicator(df['Gold'], window=14)
     df['SMA_50'] = ta.trend.sma_indicator(df['Gold'], window=50)
     df['SMA_200'] = ta.trend.sma_indicator(df['Gold'], window=200)
 
     # Momentum
     df['RSI'] = ta.momentum.rsi(df['Gold'], window=14)
+    df['RSI_7'] = ta.momentum.rsi(df['Gold'], window=7) # FAST
 
     # MACD
     df['MACD'] = ta.trend.macd(df['Gold'])
@@ -56,6 +58,8 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
                                                   window=20, window_dev=2)
     df['BB_Low'] = ta.volatility.bollinger_lband(df['Gold'],
                                                  window=20, window_dev=2)
+    df['BB_Width'] = ta.volatility.bollinger_wband(df['Gold'],
+                                                   window=20, window_dev=2)
 
     # Daily Returns
     df['Gold_Returns'] = df['Gold'].pct_change()

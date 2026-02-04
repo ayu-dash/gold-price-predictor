@@ -44,9 +44,9 @@ def train_model(
     loss_type = 'quantile' if quantile is not None else 'squared_error'
     
     model = GradientBoostingRegressor(
-        n_estimators=500,
+        n_estimators=1000,
         learning_rate=0.05,
-        max_depth=5,
+        max_depth=6,
         loss=loss_type,
         alpha=quantile if quantile is not None else 0.9,
         validation_fraction=0.1,
@@ -80,7 +80,7 @@ def train_classifier(
     )
     
     clf = GradientBoostingClassifier(
-        n_estimators=300,
+        n_estimators=500,
         learning_rate=0.05,
         max_depth=4,
         random_state=42
@@ -249,7 +249,7 @@ def recursive_forecast(
     feature_cols = [
         'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
         'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_14', 'RSI', 'MACD', 'Sentiment'
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
 
     for i in range(1, days + 1):

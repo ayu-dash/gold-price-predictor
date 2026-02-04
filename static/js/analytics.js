@@ -24,20 +24,21 @@ async function fetchModelMetrics() {
         document.getElementById('metric_coverage').innerText = `${data.train_samples + data.test_samples} total`;
         document.getElementById('metric_timestamp').innerText = data.timestamp;
 
-        // "Accuracy" is a relative business metric here (1 - MAE/AveragePrice)
-        // Simplified estimate for UI:
-        const accuracy = Math.max(0, (1 - (data.mae / 0.02)) * 100);
-        document.getElementById('metric_accuracy').innerText = `${accuracy.toFixed(1)}%`;
+        // "Accuracy" can be ambiguous. We'll show "AVG ERROR MARGIN".
+        // MAE is e.g. 0.008 (0.8%).
+        const errorMargin = (data.mae * 100);
+        document.getElementById('metric_accuracy').innerText = `±${errorMargin.toFixed(2)}%`;
+        document.querySelector('.score-label').innerText = "Avg. Prediction Error";
 
-        // Reliability Logic
+        // Reliability Logic (Lower error is better)
         const reliabilityEl = document.getElementById('metric_reliability');
         let badgeText = 'Low';
         let badgeColor = 'text-red';
 
-        if (accuracy > 98.0) {
+        if (errorMargin < 1.0) {
             badgeText = 'High';
             badgeColor = 'text-green';
-        } else if (accuracy > 90.0) {
+        } else if (errorMargin < 2.0) {
             badgeText = 'Medium';
             badgeColor = 'text-gold';
         }
