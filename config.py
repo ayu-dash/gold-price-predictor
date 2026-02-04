@@ -33,3 +33,4 @@ HOLD_THRESHOLD = 0.005  # 0.5% threshold for hold signal
 # Flask Server
 HOST = "0.0.0.0"  # Listen on all interfaces
 PORT = 5000
+DEBUG = False

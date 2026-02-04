@@ -204,7 +204,7 @@ def run_app() -> None:
     # 1. If not in debug mode, start immediately.
     # 2. If in debug mode, start only in the child (reloader) process to avoid duplicates.
     is_reloader = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
-    is_debug = '--no-debug' not in sys.argv # Simple check for app.run(debug=True)
+    is_debug = config.DEBUG
 
     if not is_debug or is_reloader:
         _start_scheduler()
@@ -221,4 +221,4 @@ def run_app() -> None:
             print(f"Cold start training failed: {e}")
 
     app = create_app()
-    app.run(debug=True, host=config.HOST, port=config.PORT)
+    app.run(debug=config.DEBUG, host=config.HOST, port=config.PORT)
