@@ -39,7 +39,7 @@ body {
 /* Sidebar */
 .sidebar {
     width: 240px;
-    /* Slimmer sidebar */
+    flex-shrink: 0;
     background-color: var(--bg-sidebar);
     border-right: 1px solid var(--glass-border);
     padding: 16px 14px;
@@ -93,8 +93,9 @@ body {
 /* Main Content */
 .main-content {
     flex: 1;
+    min-width: 0;
+    /* CRITICAL: Allows flex child to shrink below content size */
     padding: 16px 24px;
-    /* Reduced outer padding */
     background: radial-gradient(circle at top right, #1a1a1a 0%, #050505 40%);
 }
 
@@ -122,7 +123,8 @@ header h1 {
 /* Grid Fluid Architecture */
 .grid-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    /* Reduced min-width for better fit */
     gap: 20px;
     padding-bottom: 50px;
 }
