@@ -32,7 +32,29 @@ TRAINING_STATE = {
 
 # Scheduler timing
 UPDATE_INTERVAL = config.UPDATE_INTERVAL_SECONDS
-NEXT_UPDATE_TIME = time.time() + UPDATE_INTERVAL
+_scheduler_started = False
+
+
+def _get_last_train_time() -> float:
+    """Read the last training timestamp from metrics.json."""
+    if os.path.exists(config.METRICS_PATH):
+        try:
+            import json
+            from datetime import datetime
+            with open(config.METRICS_PATH, 'r') as f:
+                data = json.load(f)
+                ts_str = data.get('timestamp')
+                if ts_str:
+                    dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+                    return dt.timestamp()
+        except Exception:
+            pass
+    return 0.0
+
+
+# Initialize NEXT_UPDATE_TIME based on actual file state
+_last_train = _get_last_train_time()
+NEXT_UPDATE_TIME = max(time.time(), _last_train + UPDATE_INTERVAL)
 
 
 def get_model(retry: bool = True) -> Optional[dict]:
@@ -107,8 +129,10 @@ def _run_periodic_update() -> None:
     global NEXT_UPDATE_TIME
 
     while True:
-        time.sleep(UPDATE_INTERVAL)
-        NEXT_UPDATE_TIME = time.time() + UPDATE_INTERVAL
+        # Calculate exactly how long to wait based on NEXT_UPDATE_TIME
+        wait_time = max(0, NEXT_UPDATE_TIME - time.time())
+        if wait_time > 0:
+            time.sleep(wait_time)
 
         print("\n[Scheduler] Starting periodic update...")
         try:
@@ -128,11 +152,19 @@ def _run_periodic_update() -> None:
         except Exception as e:
             print(f"[Scheduler] Error: {e}")
 
+        # Schedule next update
+        NEXT_UPDATE_TIME = time.time() + UPDATE_INTERVAL
+
 
 def _start_scheduler() -> None:
     """Start the background scheduler thread."""
+    global _scheduler_started
+    if _scheduler_started:
+        return
+
     thread = threading.Thread(target=_run_periodic_update, daemon=True)
     thread.start()
+    _scheduler_started = True
     print("[Scheduler] Background service started.")
 
 
@@ -168,8 +200,13 @@ def create_app() -> Flask:
 
 def run_app() -> None:
     """Run the Flask application with scheduler."""
-    # Start scheduler only in reloader process
-    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    # Start scheduler:
+    # 1. If not in debug mode, start immediately.
+    # 2. If in debug mode, start only in the child (reloader) process to avoid duplicates.
+    is_reloader = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
+    is_debug = '--no-debug' not in sys.argv # Simple check for app.run(debug=True)
+
+    if not is_debug or is_reloader:
         _start_scheduler()
 
     # Cold start check
