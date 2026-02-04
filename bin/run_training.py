@@ -1,19 +1,32 @@
+"""
+Model training and prediction CLI.
+
+Handles data fetching, model training, and prediction generation.
+"""
 
 import os
 import sys
+import json
 import logging
 import argparse
 from datetime import datetime, timedelta
-from typing import Tuple, List, Dict, Any, Optional
+from pathlib import Path
+from typing import Tuple, Dict, Any, Optional
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score
-from src.data import loader
-from src.features import engineering
-from src.models import predictor
 
-# Configure Logging
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+import config
+from core.data import loader, signal_logger
+from core.features import engineering
+from core.prediction import predictor
+
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -23,7 +36,12 @@ logger = logging.getLogger(__name__)
 
 
 def fetch_and_prepare_data() -> Tuple[Optional[pd.DataFrame], Optional[float]]:
-    """Fetches market data, adds indicators, and retrieves sentiment."""
+    """
+    Fetch market data, add indicators, and retrieve sentiment.
+
+    Returns:
+        Tuple of (processed dataframe, sentiment score).
+    """
     logger.info("Fetching market data...")
     market_data = loader.update_local_database()
 
@@ -31,14 +49,11 @@ def fetch_and_prepare_data() -> Tuple[Optional[pd.DataFrame], Optional[float]]:
         logger.error("Failed to fetch market data.")
         return None, None
 
-    # Technical Indicators
     df = engineering.add_technical_indicators(market_data)
 
-    # Sentiment Analysis
     logger.info("Fetching news sentiment...")
     sentiment, _, sentiment_breakdown = loader.fetch_news_sentiment()
-    
-    # Log Sentiment Stats
+
     total = sum(sentiment_breakdown.values())
     if total > 0:
         bull_ratio = (sentiment_breakdown.get('positive', 0) / total) * 100
@@ -50,17 +65,21 @@ def fetch_and_prepare_data() -> Tuple[Optional[pd.DataFrame], Optional[float]]:
 
 
 def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
-    """Prepares data, trains the model, and returns artifacts."""
+    """
+    Prepare data, train models, and return artifacts.
+
+    Args:
+        df: Prepared dataframe with features.
+
+    Returns:
+        Tuple of (trained model, MAE score).
+    """
     logger.info("Starting training pipeline...")
-    
-    # Feature Engineering
+
     df_clean = df.dropna().copy()
-    
-    # Sanitize Infs
-    import numpy as np
     df_clean.replace([np.inf, -np.inf], np.nan, inplace=True)
     df_clean.dropna(inplace=True)
-    
+
     df_clean['Target_Return'] = df_clean['Gold_Returns'].shift(-1)
     df_train = df_clean.dropna()
 
@@ -69,94 +88,76 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
         'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
         'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
-    
-    # Filter available features
+
     valid_features = [f for f in features if f in df_train.columns]
     X = df_train[valid_features]
     y = df_train['Target_Return']
-    
-    # Double check for NaNs in X
+
     if X.isnull().values.any():
-        logger.warning(f"NaNs found in X after initial cleaning. Dropping rows...")
-        inds = X.isnull().any(axis=1)
-        X = X[~inds]
-        y = y[~inds]
-        
+        logger.warning("NaNs found after cleaning. Dropping affected rows...")
+        mask = X.isnull().any(axis=1)
+        X = X[~mask]
+        y = y[~mask]
+
     if len(X) == 0:
         raise ValueError("No valid data left for training after cleaning.")
 
-    # Train/Test Split (Time Series: No Shuffle)
     split_idx = int(0.8 * len(X))
     X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
     y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
 
-    # --- 4. Quantile Regression Training ---
+    # Train quantile regression ensemble
     print("\n--- Training Model Ensemble (Low/Med/High) ---")
-    
-    # Train Median (Main Forecast)
-    med_model, X_test, y_test = predictor.train_model(X, y, quantile=0.5)
-    predictor.save_model(med_model, "models/gold_model_med.pkl")
-    
-    # Train Low/High (Confidence Intervals)
+
+    med_model, X_test_out, y_test_out = predictor.train_model(X, y, quantile=0.5)
+    predictor.save_model(med_model, config.MODEL_MED_PATH)
+
     low_model, _, _ = predictor.train_model(X, y, quantile=0.05)
     high_model, _, _ = predictor.train_model(X, y, quantile=0.95)
-    
-    predictor.save_model(low_model, "models/gold_model_low.pkl")
-    predictor.save_model(high_model, "models/gold_model_high.pkl")
-    
-    # --- 5. Classification Training (Up/Down) ---
-    print("\n--- Training Direction Classifier (Implicit) ---")
-    # We now derive direction from the Median Regression Model
-    # This ensures consistency: If Forecast > 0, Signal is UP.
-    
-    # Calculate metrics on Test Set using REGRESSION model
-    # FILTER: Only evaluate accuracy when the model predicts a specific move > 0.1% (Noise Filter)
-    y_pred_reg = med_model.predict(X_test)
-    y_true_reg = y_test.values
-    
-    # Create mask for "High Confidence" (Significant Move) predictions
-    # We ignore days where model predicts ~0.0% change
+
+    predictor.save_model(low_model, config.MODEL_LOW_PATH)
+    predictor.save_model(high_model, config.MODEL_HIGH_PATH)
+
+    # Direction classifier evaluation
+    print("\n--- Evaluating Direction Prediction ---")
+
+    y_pred_reg = med_model.predict(X_test_out)
+    y_true_reg = y_test_out.values
+
     significant_move_mask = np.abs(y_pred_reg) > 0.001
-    
+
     if np.sum(significant_move_mask) > 10:
-        # Evaluate on the subset of data where model had conviction
         y_pred_filtered = (y_pred_reg[significant_move_mask] > 0).astype(int)
         y_true_filtered = (y_true_reg[significant_move_mask] > 0).astype(int)
-        
+
         clf_acc = accuracy_score(y_true_filtered, y_pred_filtered)
         clf_prec = precision_score(y_true_filtered, y_pred_filtered, zero_division=0)
         clf_rec = recall_score(y_true_filtered, y_pred_filtered, zero_division=0)
-        print(f"Filtered (High Conf) Direction -> Acc: {clf_acc:.2%}, Samples: {np.sum(significant_move_mask)}")
+        print(f"Filtered Direction -> Acc: {clf_acc:.2%}, Samples: {np.sum(significant_move_mask)}")
     else:
-        # Fallback to full set if not enough samples
-        print("Not enough significant moves for filtered eval. Using full set.")
+        print("Not enough significant moves. Using full set.")
         y_pred_class = (y_pred_reg > 0).astype(int)
-        y_true_class = (y_test > 0).astype(int)
+        y_true_class = (y_test_out > 0).astype(int)
         clf_acc = accuracy_score(y_true_class, y_pred_class)
         clf_prec = precision_score(y_true_class, y_pred_class, zero_division=0)
         clf_rec = recall_score(y_true_class, y_pred_class, zero_division=0)
 
-    print(f"Regression-Derived Direction -> Acc: {clf_acc:.2%}, Prec: {clf_prec:.2%}, Rec: {clf_rec:.2%}")
-    
-    # We still keep the NN classifier in the dict for legacy compatibility
-    clf_model = None 
-    
-    # --- 5b. Neural Network Experiment (Deep Learning Lite) ---
+    print(f"Direction Metrics -> Acc: {clf_acc:.2%}, Prec: {clf_prec:.2%}, Rec: {clf_rec:.2%}")
+
+    # Train neural network
     print("\n--- Training Neural Network (MLP) ---")
     nn_model, nn_rmse, nn_mae = predictor.train_neural_network(X, y)
-    predictor.save_model(nn_model, "models/gold_model_nn.pkl")
+    predictor.save_model(nn_model, config.MODEL_NN_PATH)
     print(f"Neural Network MAE: {nn_mae:.4f}")
-    # ---------------------------------------------
-    
-    # --- 6. Evaluation ---
-    rmse_med, mae_med, _ = predictor.evaluate_model(med_model, X_test, y_test)
-    rmse_low, mae_low, _ = predictor.evaluate_model(low_model, X_test, y_test)
-    rmse_high, mae_high, _ = predictor.evaluate_model(high_model, X_test, y_test)
-    
+
+    # Evaluate models
+    rmse_med, mae_med, _ = predictor.evaluate_model(med_model, X_test_out, y_test_out)
+    rmse_low, mae_low, _ = predictor.evaluate_model(low_model, X_test_out, y_test_out)
+    rmse_high, mae_high, _ = predictor.evaluate_model(high_model, X_test_out, y_test_out)
+
     logger.info(f"Median Model -> MAE: {mae_med:.4f}")
-    
-    # Save Metrics Metadata
-    import json
+
+    # Save metrics
     metrics = {
         "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         "models": {
@@ -171,39 +172,43 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
             "neural_network": {"mae": round(float(nn_mae), 6), "rmse": round(float(nn_rmse), 6)}
         },
         "train_samples": len(X_train),
-        "test_samples": len(X_test),
+        "test_samples": len(X_test_out),
         "features_used": valid_features
     }
-    
-    metrics_path = "models/metrics.json"
-    temp_metrics = metrics_path + ".tmp"
+
+    temp_metrics = config.METRICS_PATH + ".tmp"
     try:
         with open(temp_metrics, 'w') as f:
             json.dump(metrics, f, indent=4)
-        import os
-        os.replace(temp_metrics, metrics_path)
-        logger.info(f"Performance metrics saved atomically to {metrics_path}")
+        os.replace(temp_metrics, config.METRICS_PATH)
+        logger.info(f"Metrics saved to {config.METRICS_PATH}")
     except Exception as e:
         if os.path.exists(temp_metrics):
             os.remove(temp_metrics)
         logger.error(f"Failed to save metrics: {e}")
-    
+
     return med_model, mae_med
 
 
-def run_prediction(
-    model: Any, 
-    df: pd.DataFrame, 
-    mae: float
-) -> Dict[str, Any]:
-    """Generates next-day prediction and returns context."""
+def run_prediction(model: Any, df: pd.DataFrame, mae: float) -> Dict[str, Any]:
+    """
+    Generate next-day prediction and return context.
+
+    Args:
+        model: Trained model.
+        df: Feature dataframe.
+        mae: Model MAE score.
+
+    Returns:
+        Dictionary with prediction results.
+    """
     features = [
         'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
         'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
         'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
     valid_features = [f for f in features if f in df.columns]
-    
+
     latest_features = df[valid_features].iloc[[-1]].copy()
     predicted_return = model.predict(latest_features)[0]
 
@@ -211,16 +216,13 @@ def run_prediction(
     current_rate_idr = df['USD_IDR'].iloc[-1]
     predicted_price_usd = current_price_usd * (1 + predicted_return)
 
-    # Unit Conversion
-    GRAMS_PER_OZ = 31.1035
-    current_price_gram = (current_price_usd * current_rate_idr) / GRAMS_PER_OZ
-    predicted_price_gram = (predicted_price_usd * current_rate_idr) / GRAMS_PER_OZ
-    
+    current_price_gram = (current_price_usd * current_rate_idr) / config.GRAMS_PER_OZ
+    predicted_price_gram = (predicted_price_usd * current_rate_idr) / config.GRAMS_PER_OZ
+
     rec_usd, change_pct = predictor.make_recommendation(
         current_price_usd, predicted_price_usd
     )
-    
-    # Get Confidence (if classifier exists)
+
     conf_direction = "N/A"
     conf_score = 0.0
     if isinstance(model, dict) and 'clf' in model:
@@ -228,8 +230,6 @@ def run_prediction(
             model['clf'], latest_features
         )
         conf_score = round(conf_score * 100, 1)
-        
-        # Re-run recommendation with confidence
         rec_usd, change_pct = predictor.make_recommendation(
             current_price_usd, predicted_price_usd,
             conf_direction=conf_direction,
@@ -250,43 +250,51 @@ def run_prediction(
 
 
 def interactive_forecast(
-    model: Any, 
-    latest_features: pd.DataFrame, 
-    current_usd: float, 
-    current_idr: float, 
+    model: Any,
+    latest_features: pd.DataFrame,
+    current_usd: float,
+    current_idr: float,
     days: int,
     historical_df: Optional[pd.DataFrame] = None
 ) -> None:
-    """Runs recursive forecast for N days."""
-    logger.info(f"Generating recursive forecast for {days} days...")
-    
-    # Use tail of history for simulation buffer
+    """
+    Run recursive forecast for N days.
+
+    Args:
+        model: Trained model.
+        latest_features: Latest feature row.
+        current_usd: Current USD price.
+        current_idr: Current IDR rate.
+        days: Number of days to forecast.
+        historical_df: Historical dataframe for indicator calculation.
+    """
+    logger.info(f"Generating {days}-day recursive forecast...")
+
     history_buffer = None
     if historical_df is not None:
         history_buffer = historical_df.tail(100).copy()
-        
+
     forecasts = predictor.recursive_forecast(
-        model, latest_features, current_usd, current_idr, days=days,
-        historical_df=history_buffer
+        model, latest_features, current_usd, current_idr,
+        days=days, historical_df=history_buffer
     )
-    
+
     print(f"\n{'Day':<5} | {'Date':<12} | {'Price (IDR/g)':<18} | {'Change'}")
     print("-" * 55)
-    
-    base_price = (current_usd * current_idr) / 31.1035
+
+    base_price = (current_usd * current_idr) / config.GRAMS_PER_OZ
     for f in forecasts:
-        price_gram = f['Price_IDR'] / 31.1035
+        price_gram = f['Price_IDR'] / config.GRAMS_PER_OZ
         change = ((price_gram - base_price) / base_price) * 100
-        print(f"{f['Day']:<5} | {f['Date']:<12} | "
-              f"Rp {price_gram:,.0f}        | {change:+.2f}%")
+        print(f"{f['Day']:<5} | {f['Date']:<12} | Rp {price_gram:,.0f}        | {change:+.2f}%")
 
 
 def main():
+    """Main entry point for training and prediction."""
     parser = argparse.ArgumentParser(description="Gold Price Predictor Engine")
     parser.add_argument("--days", type=int, default=0, help="Interactive forecast days")
     args = parser.parse_args()
 
-    # Pipeline Execution
     df, _ = fetch_and_prepare_data()
     if df is None:
         return
@@ -294,35 +302,28 @@ def main():
     model, mae = train_pipeline(df)
     result = run_prediction(model, df, mae)
 
-    # Output Report
     action_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
-    print("\n" + "="*42)
+    print("\n" + "=" * 42)
     print(f"DATE: {datetime.now().strftime('%Y-%m-%d')}")
     print(f"ACTION WINDOW: {action_date}")
-    print("-"*42)
+    print("-" * 42)
     print(f"Current:   Rp {result['current_price_idr']:,.0f}")
     print(f"Predicted: Rp {result['predicted_price_idr']:,.0f}")
     print(f"Change:    {result['change_pct']*100:+.2f}%")
     print(f"Signal:    {result['recommendation']}")
-    print("="*42 + "\n")
+    print("=" * 42 + "\n")
 
-    # LOGGING
-    from src.data import signal_logger
-    
-    # Log the signal
     signal_logger.log_daily_signal(
         date=action_date,
         price_usd=result['current_usd'],
-        predicted_usd=result['current_usd'] * (1 + result['change_pct']), 
+        predicted_usd=result['current_usd'] * (1 + result['change_pct']),
         signal=result['recommendation'],
         confidence_score=result['confidence_score'],
         confidence_direction=result['confidence_direction']
     )
 
-    # Interactive Mode
     days = args.days
     if days == 0:
-        # Check if running interactively (TTY)
         if sys.stdin.isatty():
             try:
                 inp = input("Forecast days (Default 1): ")
@@ -334,10 +335,10 @@ def main():
 
     if days > 1:
         interactive_forecast(
-            model, 
-            result['latest_features'], 
-            result['current_usd'], 
-            result['current_rate_idr'], 
+            model,
+            result['latest_features'],
+            result['current_usd'],
+            result['current_rate_idr'],
             days,
             historical_df=df
         )
@@ -347,6 +348,6 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        logger.info("Operation cancelled by user.")
+        logger.info("Operation cancelled.")
     except Exception as e:
         logger.critical(f"Fatal Error: {e}", exc_info=True)

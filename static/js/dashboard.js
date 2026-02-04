@@ -32,14 +32,17 @@ document.addEventListener('DOMContentLoaded', function () {
 let countdownSeconds = 0;
 
 function startSignalCountdown() {
-    // Initial fetch to sync with server
-    fetch('/api/next_update')
-        .then(res => res.json())
-        .then(data => {
-            countdownSeconds = data.seconds_remaining;
-            updateCountdownUI();
-        })
-        .catch(() => { countdownSeconds = 3600; });
+    // Calculate seconds until midnight
+    function getSecondsUntilMidnight() {
+        const now = new Date();
+        const midnight = new Date(now);
+        midnight.setHours(24, 0, 0, 0); // Next midnight
+        return Math.floor((midnight - now) / 1000);
+    }
+
+    // Initial calculation
+    countdownSeconds = getSecondsUntilMidnight();
+    updateCountdownUI();
 
     // Tick every second
     setInterval(() => {
@@ -47,12 +50,10 @@ function startSignalCountdown() {
             countdownSeconds--;
             updateCountdownUI();
         } else {
-            // Re-sync when timer hits zero
-            fetch('/api/next_update')
-                .then(res => res.json())
-                .then(data => {
-                    countdownSeconds = data.seconds_remaining;
-                });
+            // Reset at midnight
+            countdownSeconds = getSecondsUntilMidnight();
+            // Trigger data refresh at midnight
+            updateDashboardData(true);
         }
     }, 1000);
 }
@@ -61,14 +62,16 @@ function updateCountdownUI() {
     const el = document.getElementById('signal_countdown');
     if (!el) return;
 
-    const m = Math.floor(countdownSeconds / 60);
+    const h = Math.floor(countdownSeconds / 3600);
+    const m = Math.floor((countdownSeconds % 3600) / 60);
     const s = countdownSeconds % 60;
 
-    // Display as MM:SS
-    el.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    // Display as HH:MM:SS
+    el.innerText = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    el.title = 'Signal Valid Until 00:00';
 
-    // Dim if very close to refresh
-    if (countdownSeconds < 10) {
+    // Highlight when close to midnight
+    if (countdownSeconds < 300) { // Last 5 minutes
         el.style.color = 'var(--accent-gold)';
         el.style.opacity = '1';
     } else {

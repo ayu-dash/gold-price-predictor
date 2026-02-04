@@ -12,7 +12,7 @@ echo "RUN DATE: $(date)" >> logs/predictions.log
 echo "==================================================" >> logs/predictions.log
 
 # Run the prediction and log output
-python3 main.py --days 1 >> logs/predictions.log 2>&1
+python3 bin/run_training.py --days 1 >> logs/predictions.log 2>&1
 
 # Deactivate
 deactivate
