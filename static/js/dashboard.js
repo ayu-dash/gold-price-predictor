@@ -92,16 +92,15 @@ function updatePriceDisplay(data) {
     // If we have a stored forecast return, update the target price and signal dynamically
     // so they stay consistent with the moving real-time price.
     if (window.lastForecastPct !== undefined) {
-        reassessSignal(newPrice, window.lastForecastPct, window.lastConfDirection, window.lastConfScore);
+        reassessSignal(newPrice, window.lastForecastPct, window.lastConfDirection, window.lastConfScore, window.lastIsBullish);
     }
 }
 
-function reassessSignal(currentPriceIdr, forecastPct, confDirection = null, confScore = 0) {
+function reassessSignal(currentPriceIdr, forecastPct, confDirection = null, confScore = 0, isBullish = false) {
     // ForecastPct is in percent (e.g. 1.2 for 1.2%)
     const predictedPrice = currentPriceIdr * (1 + (forecastPct / 100));
     const targetEl = document.getElementById('target_price');
     const signalEl = document.getElementById('signal_value');
-    const lightEl = document.getElementById('signal_light');
 
     // Update Target Text
     if (targetEl) {
@@ -116,7 +115,7 @@ function reassessSignal(currentPriceIdr, forecastPct, confDirection = null, conf
 
     // 1. Momentum-Aware Filtering
     let isFiltered = false;
-    if (data.is_bullish && forecastPct < 0) {
+    if (isBullish && forecastPct < 0) {
         if (Math.abs(forecastPct) < BEAR_PROTECTION) {
             recommendation = 'HOLD';
             isFiltered = true;
@@ -273,6 +272,7 @@ async function updateDashboardData() {
         window.lastForecastPct = data.change_pct;
         window.lastConfDirection = data.confidence_direction;
         window.lastConfScore = data.confidence_score;
+        window.lastIsBullish = data.is_bullish; // Store for realtime updates
 
         // --- SIGNAL DISCREPANCY FIX ---
         // Explicitly update the main price display to match the "Current Price" 
@@ -368,7 +368,7 @@ function updateSignalCard(data) {
     }
 
     // Update Conclusion
-    reassessSignal(data.current_price_idr_gram, data.change_pct, data.confidence_direction, data.confidence_score);
+    reassessSignal(data.current_price_idr_gram, data.change_pct, data.confidence_direction, data.confidence_score, data.is_bullish);
 }
 
 function updateSentimentCard(data) {
