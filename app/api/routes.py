@@ -351,8 +351,8 @@ def get_signals_history():
     """Return the CSV log of signals with calculated outcomes."""
     signals_df = signal_logger.get_signal_history()
 
-    if signals_df.empty:
-        return jsonify([])
+    # Ensure we have the latest historical data for outcomes
+    loader.update_local_database()
 
     if os.path.exists(config.CSV_PATH):
         history_df = pd.read_csv(config.CSV_PATH)
@@ -362,6 +362,8 @@ def get_signals_history():
         actual_prices = {}
 
     now_str = pd.Timestamp.now().strftime('%Y-%m-%d')
+    live_price_data = loader.fetch_live_data('GC=F')
+    current_live_price = live_price_data['price'] if live_price_data else None
 
     outcomes = []
     for _, row in signals_df.iterrows():
@@ -370,20 +372,35 @@ def get_signals_history():
         predicted_price = row['Predicted_USD']
         actual_price = actual_prices.get(target_date)
 
+        # Use live price as fallback for TODAY
+        is_live = False
+        if not actual_price and target_date == now_str and current_live_price:
+            actual_price = current_live_price
+            is_live = True
+
         if actual_price:
             predicted_diff = predicted_price - signal_price
             actual_diff = actual_price - signal_price
 
             if predicted_diff * actual_diff > 0:
-                outcome = "Correct"
+                base_outcome = "Correct"
             elif abs(predicted_diff) < 0.1 and abs(actual_diff) < 0.1:
-                outcome = "Correct"
+                base_outcome = "Correct"
             else:
-                outcome = "Wrong"
-        elif target_date >= now_str:
-            outcome = "Pending"
+                base_outcome = "Wrong"
+            
+            # Status Logic
+            if is_live:
+                # Market is still open for this signal's target date
+                status_prefix = "↑" if actual_diff > 0 else "↓"
+                outcome = f"Live Tracking ({status_prefix}{abs(actual_diff):.2f})"
+            else:
+                # Target date has passed, result is LOCKED from database
+                outcome = f"{base_outcome} (Final)"
+        elif target_date > now_str:
+            outcome = "Upcoming"
         else:
-            outcome = "Expired"
+            outcome = "Waiting for Daily Close"
 
         outcomes.append(outcome)
 

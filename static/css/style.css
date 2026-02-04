@@ -455,6 +455,62 @@ header h1 {
     background-color: rgba(255, 255, 255, 0.05);
 }
 
+/* Market Monitor Enhanced Colors */
+.monitor-table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.monitor-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.monitor-table td:first-child {
+    color: var(--gold);
+    font-weight: 700;
+}
+
+/* Trend Up/Down Colors */
+.trend-up {
+    color: #00ff88 !important;
+    text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+}
+
+.trend-down {
+    color: #ff4444 !important;
+    text-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
+}
+
+/* Price Column */
+.monitor-table td:nth-child(2) {
+    color: #ffffff;
+    font-weight: 500;
+}
+
+/* Arrow Indicators */
+.monitor-table td:last-child {
+    font-size: 1rem;
+}
+
+/* Pulse Animation for Active Updates */
+@keyframes pricePulse {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+.monitor-table tbody tr:hover td:first-child {
+    color: var(--gold-bright);
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
+}
+
 .forecast-input {
     float: right;
     display: flex;

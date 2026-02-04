@@ -147,9 +147,9 @@
                     // Outcome Badge
                     let outcomeBadge = 'risk-med';
                     let outcomeText = row.Outcome || 'Pending';
-                    if (outcomeText === 'Correct') outcomeBadge = 'risk-low';
-                    if (outcomeText === 'Wrong') outcomeBadge = 'risk-high';
-                    if (outcomeText === 'Expired') outcomeBadge = 'risk-med';
+                    if (outcomeText.includes('Correct')) outcomeBadge = 'risk-low';
+                    else if (outcomeText.includes('Wrong')) outcomeBadge = 'risk-high';
+                    else if (outcomeText === 'Expired') outcomeBadge = 'risk-med';
 
                     // Formatting Helper
                     const fmt = (num) => num ? `$${num.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : '-';
