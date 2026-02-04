@@ -19,8 +19,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const now = new Date();
     document.getElementById('current_date').textContent = now.toDateString();
 
-    // 5. Start Dashboard Refresh Loop (Every 60s)
-    setInterval(updateDashboardData, 60000);
+    // 5. Start Dashboard Refresh Loop (Every 60s) - SILENT
+    setInterval(() => updateDashboardData(true), 60000);
 });
 
 // ----------------------------------------
@@ -236,7 +236,7 @@ function setupPortfolioLogic() {
 // ----------------------------------------
 // Core Analytics & Signal (Low Frequency)
 // ----------------------------------------
-async function fetchAnalysis() {
+async function fetchAnalysis(silent = false) {
     // Slider Value Updates
     ['dxy', 'oil', 'idr', 'us10y', 'silver', 'sp500'].forEach(key => {
         const slider = document.getElementById(`shift_${key}`);
@@ -247,11 +247,11 @@ async function fetchAnalysis() {
             slider.oninput = () => label.innerText = `${slider.value > 0 ? '+' : ''}${slider.value}%`;
         }
     });
-    await updateDashboardData();
+    await updateDashboardData(silent);
 }
 
-async function updateDashboardData() {
-    showLoader(true);
+async function updateDashboardData(silent = false) {
+    if (!silent) showLoader(true);
     try {
         const response = await fetch('/api/prediction');
         const data = await response.json();
@@ -300,10 +300,8 @@ async function updateDashboardData() {
         }
         // -----------------------------
 
-    } catch (error) {
-        console.error('Error fetching prediction:', error);
     } finally {
-        showLoader(false);
+        if (!silent) showLoader(false);
     }
 }
 
@@ -610,8 +608,6 @@ async function runForecast() {
     } catch (error) {
         console.error('Error fetching forecast:', error);
         body.innerHTML = '<tr><td colspan="4" class="text-center text-red">Forecast failed.</td></tr>';
-    } finally {
-        showLoader(false);
     }
 }
 
