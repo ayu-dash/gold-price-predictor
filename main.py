@@ -88,17 +88,42 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
     y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
 
-    logger.info(f"Training on {len(X_train)} samples.")
-    model, _, _ = predictor.train_model(X_train, y_train)
+    logger.info(f"Training Quantile Ensemble on {len(X_train)} samples.")
+    
+    # Train 3 models for confidence intervals
+    model_med, _, _ = predictor.train_model(X_train, y_train, quantile=0.5)
+    model_low, _, _ = predictor.train_model(X_train, y_train, quantile=0.05)
+    model_high, _, _ = predictor.train_model(X_train, y_train, quantile=0.95)
     
     # Persistence
-    predictor.save_model(model)
-
-    # Evaluation
-    _, mae, _ = predictor.evaluate_model(model, X_test, y_test)
-    logger.info(f"Model MAE: {mae:.4f}")
+    predictor.save_model(model_med, "models/gold_model_med.pkl")
+    predictor.save_model(model_low, "models/gold_model_low.pkl")
+    predictor.save_model(model_high, "models/gold_model_high.pkl")
     
-    return model, mae
+    # Legacy support (copy med to main path)
+    predictor.save_model(model_med, "models/gold_model.pkl")
+
+    # Evaluation (on Median)
+    rmse, mae, _ = predictor.evaluate_model(model_med, X_test, y_test)
+    logger.info(f"Median Model Results -> MAE: {mae:.4f}, RMSE: {rmse:.4f}")
+    
+    # Save Metrics Metadata
+    import json
+    metrics = {
+        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "mae": round(float(mae), 6),
+        "rmse": round(float(rmse), 6),
+        "train_samples": len(X_train),
+        "test_samples": len(X_test),
+        "features_used": valid_features
+    }
+    
+    metrics_path = "models/metrics.json"
+    with open(metrics_path, 'w') as f:
+        json.dump(metrics, f, indent=4)
+    logger.info(f"Performance metrics saved to {metrics_path}")
+    
+    return model_med, mae
 
 
 def run_prediction(

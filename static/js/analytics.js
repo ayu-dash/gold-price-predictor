@@ -1,11 +1,38 @@
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Initial Data Fetch
     fetchYearlyStats();
+    fetchModelMetrics();
 
     // Set current date
     const now = new Date();
-    document.getElementById('current_date').textContent = now.toDateString();
+    const dateEl = document.getElementById('current_date');
+    if (dateEl) dateEl.textContent = now.toDateString();
 });
+
+async function fetchModelMetrics() {
+    try {
+        const response = await fetch('/api/model_metrics');
+        const data = await response.json();
+
+        if (data.error) {
+            console.warn('Model metrics not found');
+            return;
+        }
+
+        // Display Data
+        document.getElementById('metric_mae').innerText = data.mae.toFixed(4);
+        document.getElementById('metric_coverage').innerText = `${data.train_samples + data.test_samples} total`;
+        document.getElementById('metric_timestamp').innerText = data.timestamp;
+
+        // "Accuracy" is a relative business metric here (1 - MAE/AveragePrice)
+        // Simplified estimate for UI:
+        const accuracy = Math.max(0, (1 - (data.mae / 0.02)) * 100);
+        document.getElementById('metric_accuracy').innerText = `${accuracy.toFixed(1)}%`;
+
+    } catch (error) {
+        console.error('Error fetching model metrics:', error);
+    }
+}
 
 async function fetchYearlyStats() {
     showLoader(true);

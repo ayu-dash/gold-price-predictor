@@ -505,3 +505,174 @@ header h1 {
         font-size: 1.4rem;
     }
 }
+
+/* Spread Radar */
+.spread-container {
+    margin-top: 15px;
+}
+
+.spread-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.spread-item .value {
+    font-weight: 600;
+}
+
+.spread-diff {
+    margin-top: 15px;
+    padding: 10px;
+    background: rgba(212, 175, 55, 0.1);
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--gold);
+}
+
+/* Portfolio Tracker */
+.portfolio-stats {
+    display: flex;
+    gap: 20px;
+    margin: 15px 0;
+}
+
+.stat-item {
+    flex: 1;
+}
+
+.stat-item .label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.stat-item .value {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.portfolio-details {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--glass-border);
+    padding-top: 10px;
+}
+
+/* Modal Styling */
+.modal-content {
+    background: #111;
+    padding: 30px;
+    border-radius: 20px;
+    width: 400px;
+    max-width: 90%;
+    border: 1px solid var(--glass-border);
+}
+
+.modal-content h2 {
+    margin-bottom: 25px;
+    font-size: 1.4rem;
+    color: var(--gold);
+}
+
+.input-group {
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.input-group input {
+    width: 100%;
+    background: var(--bg-dark);
+    border: 1px solid var(--glass-border);
+    padding: 12px;
+    border-radius: 8px;
+    color: white;
+    font-size: 1rem;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 30px;
+}
+
+.modal-actions button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#save_portfolio {
+    background: var(--gold);
+    color: black;
+}
+
+.bg-grey {
+    background: #333;
+    color: white;
+}
+
+.icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.icon-btn:hover {
+    color: var(--gold);
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Analytics Metrics */
+.analytics-metrics {
+    margin-top: 15px;
+}
+
+.metric-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.metric-item:last-child {
+    border-bottom: none;
+}
+
+.metric-item .label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.metric-item .value {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+#metric_timestamp {
+    color: var(--text-muted);
+    font-style: italic;
+}

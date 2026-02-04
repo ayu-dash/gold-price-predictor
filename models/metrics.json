@@ -1,0 +1,25 @@
+{
+    "timestamp": "2026-02-04 17:26:35",
+    "mae": 0.008695,
+    "rmse": 0.012156,
+    "train_samples": 3527,
+    "test_samples": 882,
+    "features_used": [
+        "Gold",
+        "USD_IDR",
+        "DXY",
+        "Oil",
+        "SP500",
+        "VIX_Norm",
+        "GVZ_Norm",
+        "Silver",
+        "Copper",
+        "US10Y",
+        "Nikkei",
+        "DAX",
+        "SMA_14",
+        "RSI",
+        "MACD",
+        "Sentiment"
+    ]
+}

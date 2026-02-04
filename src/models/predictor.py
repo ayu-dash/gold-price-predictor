@@ -22,14 +22,16 @@ HOLD_THRESHOLD = 0.005  # 0.5%
 
 def train_model(
     X: pd.DataFrame, 
-    y: pd.Series
+    y: pd.Series,
+    quantile: Optional[float] = None
 ) -> Tuple[GradientBoostingRegressor, pd.DataFrame, pd.Series]:
     """
-    Trains a Gradient Boosting Regressor on the provided data.
+    Trains a Gradient Boosting Regressor (Support for Quantile Loss).
 
     Args:
         X (pd.DataFrame): Feature matrix.
         y (pd.Series): Target vector (returns).
+        quantile (Optional[float]): If provided, uses 'quantile' loss with specified alpha.
 
     Returns:
         Tuple[GradientBoostingRegressor, pd.DataFrame, pd.Series]: 
@@ -39,10 +41,14 @@ def train_model(
         X, y, test_size=0.2, shuffle=False
     )
     
+    loss_type = 'quantile' if quantile is not None else 'squared_error'
+    
     model = GradientBoostingRegressor(
         n_estimators=500,
         learning_rate=0.05,
         max_depth=5,
+        loss=loss_type,
+        alpha=quantile if quantile is not None else 0.9,
         validation_fraction=0.1,
         n_iter_no_change=20,
         random_state=42
@@ -133,7 +139,8 @@ def recursive_forecast(
     current_price_usd: float, 
     current_rate_idr: float, 
     days: int = 5, 
-    historical_df: Optional[pd.DataFrame] = None
+    historical_df: Optional[pd.DataFrame] = None,
+    shifts: Optional[Dict[str, float]] = None
 ) -> List[Dict[str, Any]]:
     """
     Generates multi-day forecast with dynamic feature simulation.
@@ -174,12 +181,21 @@ def recursive_forecast(
 
     for i in range(1, days + 1):
         # 1. Prepare Input Features
-        # Ensure we only use columns the model was trained on
         available_cols = [c for c in feature_cols if c in current_sim_df.columns]
         next_features = current_sim_df.iloc[[-1]][available_cols].copy()
 
         # 2. Predict Return
-        pred_ret = model.predict(next_features)[0]
+        # Support for multi-model quantile ensemble
+        if isinstance(model, dict):
+            # Quantile Ensemble: {'low': model_0.05, 'med': model_0.5, 'high': model_0.95}
+            pred_ret = model['med'].predict(next_features)[0]
+            pred_low = model['low'].predict(next_features)[0]
+            pred_high = model['high'].predict(next_features)[0]
+        else:
+            # Traditional single model
+            pred_ret = model.predict(next_features)[0]
+            pred_low = pred_ret - 0.012 # Fallback fixed interval
+            pred_high = pred_ret + 0.012
         
         # --- REALISM LOGIC ---
         # A. Dampening
@@ -211,14 +227,18 @@ def recursive_forecast(
         # Update Gold Price
         new_row['Gold'] = current_sim_price
         
-        # Update Macro Features (Gaussian Random Walk)
-        # Give them "life" so they aren't static
+        # Update Macro Features (Gaussian Random Walk or Manual Shift)
         macro_features = ['Oil', 'DXY', 'SP500', 'Silver', 'Copper', 'US10Y', 'USD_IDR']
         for feat in macro_features:
             if feat in new_row.columns:
-                # Random walk: +/- 0.5% volatility
-                noise = np.random.normal(0, 0.005)
-                new_row[feat] = new_row[feat] * (1 + noise)
+                if shifts and feat in shifts and shifts[feat] != 0:
+                    # Apply manual linear shift divided by days to make it progressive
+                    step_shift = shifts[feat] / days
+                    new_row[feat] = new_row[feat] * (1 + step_shift)
+                else:
+                    # Random walk: +/- 0.5% volatility
+                    noise = np.random.normal(0, 0.005)
+                    new_row[feat] = new_row[feat] * (1 + noise)
                 
         # Decay Sentiment slowly to neutral
         if 'Sentiment' in new_row.columns:
@@ -237,6 +257,8 @@ def recursive_forecast(
             'Date': new_row.index[0].strftime('%Y-%m-%d'),
             'Price_USD': current_sim_price,
             'Price_IDR': current_sim_price_idr,
+            'Price_Min_IDR': current_sim_price * (1 + pred_low) * current_rate_idr,
+            'Price_Max_IDR': current_sim_price * (1 + pred_high) * current_rate_idr,
             'Return_Pct': round(pred_ret * 100, 2)
         })
             

@@ -24,39 +24,69 @@ from requests.exceptions import RequestException
 # -----------------------------
 # Physical Price Scraper
 # -----------------------------
-def fetch_antam_price() -> Optional[int]:
+def fetch_antam_price(force_refresh: bool = False, current_spot_price: float = None) -> Optional[int]:
     """
-    Scrapes daily Antam gold price from emasantam.id.
+    Scrapes daily Antam gold price from emasantam.id with caching and fallback.
+    
+    Args:
+        force_refresh (bool): Skip cache.
+        current_spot_price (float): Current Spot price in IDR/g to use as fallback.
     
     Returns:
-        Optional[int]: The price per gram in IDR, or None if failed.
+        Optional[int]: The price per gram in IDR.
     """
+    cache_path = "models/last_antam_price.pkl"
+    cache_expiry = 21600  # 6 hours
+
+    if not force_refresh and os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'rb') as f:
+                cache = pickle.load(f)
+                if (time.time() - cache.get('timestamp', 0)) < cache_expiry:
+                    return cache.get('price')
+        except Exception:
+            pass
+
     url = "https://emasantam.id/harga-emas-antam-harian/"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) "
-                      "Chrome/91.0.4472.124 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
     
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        # Short timeout to avoid hanging the dashboard
+        response = requests.get(url, headers=headers, timeout=5)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
         content = soup.get_text()
         content = re.sub(r'\s+', ' ', content)
         
-        # Pattern match specifically for "Harga Emas 1 gram" followed by price
         match = re.search(r'Harga Emas 1 gram.*?Rp\.?\s*([\d\.]+)', content, re.IGNORECASE)
         
         if match:
             price_str = match.group(1).replace('.', '')
-            return int(price_str)
+            price = int(price_str)
             
-    except RequestException as e:
-        print(f"Network error fetching Antam price: {e}")
+            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+            with open(cache_path, 'wb') as f:
+                pickle.dump({'timestamp': time.time(), 'price': price}, f)
+            
+            return price
+            
     except Exception as e:
-        print(f"Error parsing Antam price: {e}")
+        print(f"Scraper failed: {e}. Using fallback.")
+        
+    # FALLBACK LOGIC: If scraper fails, use last cache OR Spot + 11% spread
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'rb') as f:
+                return pickle.load(f).get('price')
+        except Exception:
+            pass
+            
+    if current_spot_price:
+        # Typical Antam spread over spot is 10-12%
+        return int(current_spot_price * 1.11)
     
     return None
 
@@ -369,6 +399,23 @@ def fetch_news_sentiment(
             # Skip individual query failures
             continue
 
+    # --- Sentiment 2.0: Indonesian News Scraper ---
+    try:
+        print("      Fetching local news (CNBC Indonesia)...")
+        id_news_url = "https://www.cnbcindonesia.com/market/emas"
+        res = requests.get(id_news_url, timeout=5)
+        if res.status_code == 200:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(res.text, 'html.parser')
+            # Look for article titles in the list
+            articles = soup.select('.list article h2')
+            for art in articles[:10]:
+                title = art.get_text(strip=True)
+                all_articles.append({'title': title, 'source': 'CNBC ID'})
+    except Exception as e:
+        print(f"      Warning: Local news fetch failed ({e})")
+    # ---------------------------------------------
+
     # Deduplicate by title
     seen_titles = set()
     unique_articles = []
@@ -423,9 +470,9 @@ def fetch_news_sentiment(
                 
                 # Simple keyword weighting
                 text_lower = text.lower()
-                if any(k in text_lower for k in ['recession', 'crash', 'plunge']):
+                if any(k in text_lower for k in ['recession', 'crash', 'plunge', 'anjlok', 'jatuh', 'lemah']):
                      score -= 0.5
-                if any(k in text_lower for k in ['soar', 'record', 'rally']):
+                if any(k in text_lower for k in ['soar', 'record', 'rally', 'melejit', 'rekor', 'terbang']):
                      score += 0.5
                      
                 scores.append(score)

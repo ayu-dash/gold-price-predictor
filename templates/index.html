@@ -59,10 +59,28 @@
 
                 <!-- Signal Card -->
                 <div class="card signal-card glass">
-                    <div class="card-header">Trading Signal</div>
+                    <div class="card-header">
+                        Trading Signal
+                        <div id="signal_light" class="status-light"></div>
+                    </div>
                     <div id="signal_value" class="signal-value text-gold">--</div>
                     <div id="target_price" class="sub-price" style="margin-top: 5px; font-weight: 600;">Target: --</div>
                     <div class="action-window">Next Window: <span id="action_date">--</span></div>
+                </div>
+
+                <!-- Accuracy Scorecard Card -->
+                <div class="card glass">
+                    <div class="card-header">Accuracy Scorecard</div>
+                    <div class="scorecard-container">
+                        <div class="score-main">
+                            <div class="score-value" id="score_pct">--%</div>
+                            <div class="score-label">Last 7 Days</div>
+                        </div>
+                        <div class="score-details" id="score_details">
+                            Reliability: <span class="text-gold">Medium</span><br>
+                            Avg Error: <span id="score_mae">--</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Sentiment Card -->
@@ -76,6 +94,24 @@
                         <span>Bearish: <span id="bear_ratio" class="text-red">--%</span></span>
                     </div>
                     <div class="sentiment-score" id="sentiment_avg">Score: 0.00</div>
+                </div>
+
+                <!-- Spread Radar Card -->
+                <div class="card spread-card glass">
+                    <div class="card-header">Spread Radar (Spot vs Phys)</div>
+                    <div class="spread-container">
+                        <div class="spread-item">
+                            <span class="label">Physical (Antam):</span>
+                            <span id="physical_price" class="value">Rp --</span>
+                        </div>
+                        <div class="spread-item">
+                            <span class="label">Spot (Intl):</span>
+                            <span id="spot_price" class="value">Rp --</span>
+                        </div>
+                        <div class="spread-diff" id="spread_diff">
+                            Spread: --%
+                        </div>
+                    </div>
                 </div>
 
                 <div class="card chart-card glass grid-span-2">
@@ -104,13 +140,53 @@
                     </ul>
                 </div>
 
+                <!-- Portfolio Tracker Card -->
+                <div class="card portfolio-card glass">
+                    <div class="card-header">
+                        My Portfolio
+                        <button id="edit_portfolio" class="icon-btn">
+                            <span class="material-symbols-outlined" style="font-size: 1.2rem;">edit</span>
+                        </button>
+                    </div>
+                    <div class="portfolio-stats">
+                        <div class="stat-item">
+                            <div class="label">Total Value</div>
+                            <div id="portfolio_value" class="value">Rp 0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="label">P/L (Today)</div>
+                            <div id="portfolio_pl" class="value">--</div>
+                        </div>
+                    </div>
+                    <div class="portfolio-details" id="portfolio_details">
+                        Holdings: <span id="portfolio_holdings">0</span>g @ <span id="portfolio_avg_price">Rp 0</span>
+                    </div>
+                </div>
+
                 <!-- Multi-day Forecast -->
                 <div class="card forecast-card glass grid-span-full">
                     <div class="card-header">
                         Interactive Forecast
                         <div class="forecast-input">
-                            <input type="number" id="forecast_days" value="7" min="2" max="100">
-                            <button id="run_forecast">Run Forecast</button>
+                            <div class="input-line">
+                                <label>Days:</label>
+                                <input type="number" id="forecast_days" value="7" min="2" max="100">
+                                <button id="run_forecast">Run Forecast</button>
+                            </div>
+                            <div class="simulation-sliders">
+                                <div class="slider-group">
+                                    <label>DXY Shift: <span id="v_dxy">0%</span></label>
+                                    <input type="range" id="shift_dxy" min="-10" max="10" value="0" step="0.5">
+                                </div>
+                                <div class="slider-group">
+                                    <label>Oil Shift: <span id="v_oil">0%</span></label>
+                                    <input type="range" id="shift_oil" min="-10" max="10" value="0" step="0.5">
+                                </div>
+                                <div class="slider-group">
+                                    <label>USD/IDR Shift: <span id="v_idr">0%</span></label>
+                                    <input type="range" id="shift_idr" min="-10" max="10" value="0" step="0.5">
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="forecast-table-container">
@@ -119,13 +195,15 @@
                                 <tr>
                                     <th>Day</th>
                                     <th>Date</th>
-                                    <th>Price (IDR/g)</th>
-                                    <th>Estimated Change</th>
+                                    <th>Min Price</th>
+                                    <th>Max Price</th>
+                                    <th>Est. Avg (IDR/g)</th>
+                                    <th>Est. Change</th>
                                 </tr>
                             </thead>
                             <tbody id="forecast_body">
                                 <tr>
-                                    <td colspan="4" class="text-center">Set days and click run.</td>
+                                    <td colspan="6" class="text-center">Set days and click run.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -133,6 +211,25 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Portfolio Edit Modal -->
+    <div id="portfolio_modal" class="overlay">
+        <div class="modal-content glass">
+            <h2>Manage Portfolio</h2>
+            <div class="input-group">
+                <label>Total Gold Owned (grams)</label>
+                <input type="number" id="input_gold_amount" step="0.01" placeholder="e.g. 10.5">
+            </div>
+            <div class="input-group">
+                <label>Avg. Purchase Price (IDR/g)</label>
+                <input type="number" id="input_purchase_price" placeholder="e.g. 1200000">
+            </div>
+            <div class="modal-actions">
+                <button id="cancel_portfolio" class="bg-grey">Cancel</button>
+                <button id="save_portfolio">Save Holdings</button>
+            </div>
+        </div>
     </div>
 
     <!-- Loading Modal -->

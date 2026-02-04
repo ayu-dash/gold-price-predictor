@@ -29,27 +29,39 @@ import sys
 import subprocess
 
 def get_model():
-    """Lazy loads or returns the global trained model. Auto-retrains on failure."""
+    """Lazy loads or returns the global trained model ensemble. Auto-retrains on failure."""
     global trained_model
     if trained_model is None:
-        print(f"Loading model from {MODEL_PATH}...")
+        paths = {
+            'med': "models/gold_model_med.pkl",
+            'low': "models/gold_model_low.pkl",
+            'high': "models/gold_model_high.pkl"
+        }
+        
         try:
-            trained_model = predictor.load_model(MODEL_PATH)
-        except Exception as e:
-            print(f"Error loading model ({e}). Version mismatch likely. Retraining...")
-            try:
-                # Remove corrupt model
-                if os.path.exists(MODEL_PATH):
-                    os.remove(MODEL_PATH)
+            ensemble = {}
+            for q, p in paths.items():
+                if not os.path.exists(p):
+                    # Fallback to legacy path if specific quantile not found
+                    ensemble[q] = predictor.load_model("models/gold_model.pkl")
+                else:
+                    ensemble[q] = predictor.load_model(p)
+            
+            if all(m is not None for m in ensemble.values()):
+                trained_model = ensemble
+                print("Model ensemble loaded successfully.")
+            else:
+                raise ValueError("Some models failed to load.")
                 
-                # Retrain
+        except Exception as e:
+            print(f"Error loading ensemble ({e}). Retraining...")
+            try:
                 subprocess.run([sys.executable, "main.py", "--days", "1"], check=True)
-                trained_model = predictor.load_model(MODEL_PATH)
+                # Retry loading
+                return get_model() 
             except Exception as e2:
                 print(f"Critical Error: Failed to retrain model: {e2}")
-
-        if trained_model is None:
-            print("Warning: No model found even after checks. Please run main.py peridocially.")
+    
     return trained_model
 
 
@@ -99,12 +111,38 @@ def get_prediction():
     ]
     available_features = [f for f in features if f in df.columns]
 
-    # Predict
-    latest_row = df[available_features].iloc[[-1]]
-    predicted_return = model_obj.predict(latest_row)[0]
+    # Fetch LIVE data for actual current price
+    live_gold = loader.fetch_live_data('GC=F')
+    live_idr = loader.fetch_live_data('IDR=X')
+    
+    current_usd = live_gold['price'] if live_gold else market_data['Gold'].iloc[-1]
+    current_idr_rate = live_idr['price'] if live_idr else market_data['USD_IDR'].iloc[-1]
 
-    current_usd = market_data['Gold'].iloc[-1]
-    current_idr_rate = market_data['USD_IDR'].iloc[-1]
+    # --- DATA LAG FIX: Inject live data as Today's row ---
+    if live_gold and live_idr:
+        new_row = df.iloc[[-1]].copy()
+        new_row.index = [pd.Timestamp.now().normalize()]
+        new_row['Gold'] = current_usd
+        new_row['USD_IDR'] = current_idr_rate
+        
+        # Add slight jitter for macro context
+        for feat in ['DXY', 'Oil', 'SP500', 'Silver']:
+            if feat in new_row.columns:
+                new_row[feat] = new_row[feat] * (1 + (live_gold.get('change_pct', 0)/200))
+        
+        df = pd.concat([df, new_row])
+        df = engineering.add_technical_indicators(df)
+        latest_row = df[available_features].iloc[[-1]]
+    else:
+        latest_row = df[available_features].iloc[[-1]]
+
+    # Predict
+    # model_obj is now a dict {'low':..., 'med':..., 'high':...}
+    if isinstance(model_obj, dict):
+        predicted_return = model_obj['med'].predict(latest_row)[0]
+    else:
+        predicted_return = model_obj.predict(latest_row)[0]
+        
     predicted_usd = current_usd * (1 + predicted_return)
 
     # Signal
@@ -119,8 +157,8 @@ def get_prediction():
     prev_usd = market_data['Gold'].iloc[-2] if len(market_data) > 1 else current_usd
     daily_change_pct = ((current_usd - prev_usd) / prev_usd) * 100
 
-    # Fetch Physical Price (Antam) - Real Data (User Request: No Mock)
-    physical_price = loader.fetch_antam_price()
+    # Fetch Physical Price (Antam) - Real Data with Spot Fallback
+    physical_price = loader.fetch_antam_price(current_spot_price=price_gram_idr)
     # physical_price = None
 
     # Estimated Retail Price REMOVED (Was mock/calculation)
@@ -142,8 +180,6 @@ def get_prediction():
             '%Y-%m-%d'),
         "top_headlines": headlines
     }
-
-    return jsonify(result)
 
     return jsonify(result)
 
@@ -182,6 +218,9 @@ def get_forecast():
         return jsonify({"error": "Model not trained yet"}), 503
 
     days = request.args.get('days', default=7, type=int)
+    dxy_shift = request.args.get('dxy_shift', default=0, type=float) / 100
+    oil_shift = request.args.get('oil_shift', default=0, type=float) / 100
+    idr_shift = request.args.get('idr_shift', default=1, type=float) # idr is special as it's rate
 
     market_data = loader.update_local_database()
     df = engineering.add_technical_indicators(market_data)
@@ -194,17 +233,43 @@ def get_forecast():
         'SMA_14', 'RSI', 'MACD', 'Sentiment'
     ]
     available_features = [f for f in features if f in df.columns]
+    # Fetch LIVE data for t0 (Start of recursive forecast)
+    live_gold = loader.fetch_live_data('GC=F')
+    live_idr = loader.fetch_live_data('IDR=X')
+    
+    current_usd = live_gold['price'] if live_gold else market_data['Gold'].iloc[-1]
+    current_idr_rate = live_idr['price'] if live_idr else market_data['USD_IDR'].iloc[-1]
 
-    latest_features = df[available_features].iloc[[-1]]
-    current_usd = market_data['Gold'].iloc[-1]
-    current_idr_rate = market_data['USD_IDR'].iloc[-1]
-
-    # Ambil data history (misal 100 hari terakhir) untuk buffer perhitungan indikator
+    # --- DATA LAG FIX ---
+    # Append the live data as a new row to the history buffer so technical indicators (RSI/MACD) 
+    # are recalculated for "Today" before forecasting "Tomorrow".
     history_buffer = df.tail(100).copy()
+    
+    if live_gold and live_idr:
+        new_row_data = history_buffer.iloc[[-1]].copy()
+        new_row_data.index = [pd.Timestamp.now().normalize()]
+        new_row_data['Gold'] = current_usd
+        new_row_data['USD_IDR'] = current_idr_rate
+        # Add slight jitter to macro features to avoid static flatlines if market is open
+        for feat in ['DXY', 'Oil', 'SP500', 'Silver']:
+            if feat in new_row_data.columns:
+                new_row_data[feat] = new_row_data[feat] * (1 + (live_gold['change_pct']/200))
+        
+        history_buffer = pd.concat([history_buffer, new_row_data])
+        # Recalculate indicators with the new live row
+        history_buffer = engineering.add_technical_indicators(history_buffer)
+        latest_features = history_buffer[available_features].iloc[[-1]]
+    else:
+        latest_features = df[available_features].iloc[[-1]]
+    # -------------------
+
+    # Handle USD/IDR shift properly (it's a percentage shift from the live rate)
+    manual_idr_rate = current_idr_rate * (1 + (request.args.get('idr_shift', default=0, type=float)/100))
 
     forecast_data = predictor.recursive_forecast(
-        model_obj, latest_features, current_usd, current_idr_rate, days=days,
-        historical_df=history_buffer
+        model_obj, latest_features, current_usd, manual_idr_rate, days=days,
+        historical_df=history_buffer,
+        shifts={'DXY': dxy_shift, 'Oil': oil_shift}
     )
 
     grams_per_oz = 31.1035
@@ -213,6 +278,8 @@ def get_forecast():
         formatted.append({
             "date": f['Date'],
             "price_idr": round(f['Price_IDR'] / grams_per_oz, 0),
+            "price_min": round(f['Price_Min_IDR'] / grams_per_oz, 0),
+            "price_max": round(f['Price_Max_IDR'] / grams_per_oz, 0),
             "change_pct": f['Return_Pct']
         })
 
@@ -294,6 +361,22 @@ def get_technical():
     }
     return jsonify(data)
 
+
+
+@app.route("/api/model_metrics")
+def get_model_metrics():
+    """Returns model performance metrics from training metadata."""
+    path = "models/metrics.json"
+    if not os.path.exists(path):
+        return jsonify({"error": "Metrics not found"}), 404
+    
+    import json
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ----------------------------------------------------

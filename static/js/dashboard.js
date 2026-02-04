@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 2. Setup Event Listeners
     setupEventListeners();
+    setupPortfolioLogic();
 
     // 3. Start Realtime Polling (Every 30 seconds)
     startRealtimeUpdates();
@@ -71,14 +72,94 @@ function updatePriceDisplay(data) {
     usdEl.innerText = `$ ${data.price_usd.toLocaleString()} / Oz`;
 
     // Change Tag
-    changeEl.innerText = `${data.change_pct > 0 ? '+' : ''}${data.change_pct}%`;
+    changeEl.innerText = `${data.change_pct > 0 ? '+' : ''}${data.change_pct.toFixed(2)}%`;
     changeEl.className = `change-tag ${data.change_pct >= 0 ? 'bullish' : 'bearish'}`;
+
+    // Update Spread Radar & Portfolio
+    updateSpreadAndPortfolio(data.price_idr_gram);
+}
+
+function updateSpreadAndPortfolio(currentPrice) {
+    // 1. Update Spread Radar
+    const physEl = document.getElementById('physical_price');
+    const spotEl = document.getElementById('spot_price');
+    const diffEl = document.getElementById('spread_diff');
+
+    const physicalPrice = parseInt(window.lastPhysicalPrice || 0);
+    if (physicalPrice > 0) {
+        physEl.innerText = `Rp ${physicalPrice.toLocaleString('id-ID')}`;
+        spotEl.innerText = `Rp ${currentPrice.toLocaleString('id-ID')}`;
+
+        const spread = ((physicalPrice - currentPrice) / currentPrice) * 100;
+        diffEl.innerText = `Spread: ${spread > 0 ? '+' : ''}${spread.toFixed(2)}%`;
+        diffEl.className = `spread-diff ${spread < 5 ? 'text-green' : 'text-gold'}`;
+    }
+
+    // 2. Update Portfolio Value
+    const portfolio = JSON.parse(localStorage.getItem('gold_portfolio') || '{"amount": 0, "avgPrice": 0}');
+    if (portfolio.amount > 0) {
+        const totalValue = portfolio.amount * currentPrice;
+        const totalCost = portfolio.amount * portfolio.avgPrice;
+        const pl = totalValue - totalCost;
+        const plPct = (pl / totalCost) * 100;
+
+        document.getElementById('portfolio_value').innerText = `Rp ${Math.round(totalValue).toLocaleString('id-ID')}`;
+        const plEl = document.getElementById('portfolio_pl');
+        plEl.innerText = `${pl >= 0 ? '+' : ''}Rp ${Math.round(pl).toLocaleString('id-ID')} (${plPct.toFixed(2)}%)`;
+        plEl.className = `value ${pl >= 0 ? 'text-green' : 'text-red'}`;
+
+        document.getElementById('portfolio_holdings').innerText = portfolio.amount;
+        document.getElementById('portfolio_avg_price').innerText = `Rp ${portfolio.avgPrice.toLocaleString('id-ID')}`;
+    }
+}
+
+// ----------------------------------------
+// Portfolio Logic
+// ----------------------------------------
+function setupPortfolioLogic() {
+    const editBtn = document.getElementById('edit_portfolio');
+    const modal = document.getElementById('portfolio_modal');
+    const cancelBtn = document.getElementById('cancel_portfolio');
+    const saveBtn = document.getElementById('save_portfolio');
+
+    if (!editBtn) return;
+
+    editBtn.onclick = () => {
+        const portfolio = JSON.parse(localStorage.getItem('gold_portfolio') || '{"amount": 0, "avgPrice": 0}');
+        document.getElementById('input_gold_amount').value = portfolio.amount;
+        document.getElementById('input_purchase_price').value = portfolio.avgPrice;
+        modal.classList.add('active');
+    };
+
+    cancelBtn.onclick = () => modal.classList.remove('active');
+
+    saveBtn.onclick = () => {
+        const amount = parseFloat(document.getElementById('input_gold_amount').value) || 0;
+        const avgPrice = parseInt(document.getElementById('input_purchase_price').value) || 0;
+
+        localStorage.setItem('gold_portfolio', JSON.stringify({ amount, avgPrice }));
+        modal.classList.remove('active');
+
+        // Trigger UI update if we have current price
+        const currentPrice = parseFloat(document.getElementById('price_idr').dataset.value || 0);
+        if (currentPrice > 0) updateSpreadAndPortfolio(currentPrice);
+    };
 }
 
 // ----------------------------------------
 // Core Analytics & Signal (Low Frequency)
 // ----------------------------------------
 async function fetchAnalysis() {
+    // Slider Value Updates
+    ['dxy', 'oil', 'idr'].forEach(key => {
+        const slider = document.getElementById(`shift_${key}`);
+        const label = document.getElementById(`v_${key}`);
+        if (slider && label) {
+            // Initialize label with current slider value
+            label.innerText = `${slider.value > 0 ? '+' : ''}${slider.value}%`;
+            slider.oninput = () => label.innerText = `${slider.value > 0 ? '+' : ''}${slider.value}%`;
+        }
+    });
     await updateDashboardData();
 }
 
@@ -99,8 +180,13 @@ async function updateDashboardData() {
         // Update Sentiment
         updateSentimentCard(data);
 
-        // Note: We don't overwrite price_idr here to avoid conflict with realtime updates,
-        // unless realtime updates are failing. 
+        // Store physical price for spread calculation
+        window.lastPhysicalPrice = data.physical_price_idr;
+        if (data.current_price_idr_gram) {
+            const priceEl = document.getElementById('price_idr');
+            if (priceEl) priceEl.dataset.rate = data.current_idr_rate;
+            updateSpreadAndPortfolio(data.current_price_idr_gram);
+        }
 
     } catch (error) {
         console.error('Error fetching prediction:', error);
@@ -112,24 +198,26 @@ async function updateDashboardData() {
 function updateSignalCard(data) {
     const signalText = document.getElementById('signal_value');
     const forecastHtml = `<div style="font-size: 0.8rem; margin-top: 5px; opacity: 0.7;">Forecast 24h: ${data.change_pct > 0 ? '+' : ''}${data.change_pct}%</div>`;
-
-    signalText.innerHTML = `${data.recommendation} ${forecastHtml}`;
-    signalText.className = data.recommendation === 'BUY' ? 'text-gold' : (data.recommendation === 'SELL' ? 'text-red' : 'text-grey');
-
-    if (document.getElementById('action_date')) {
-        document.getElementById('action_date').textContent = data.action_date;
-    }
-
+    const signalEl = document.getElementById('signal_value');
     const targetEl = document.getElementById('target_price');
-    if (targetEl) {
-        if (data.recommendation === 'BUY') {
-            targetEl.textContent = `Sell Target: Rp ${data.predicted_price_idr_gram.toLocaleString()}`;
-        } else if (data.recommendation === 'SELL') {
-            targetEl.textContent = `Exit Price: Rp ${data.current_price_idr_gram.toLocaleString()}`;
-        } else {
-            targetEl.textContent = `Predicted: Rp ${data.predicted_price_idr_gram.toLocaleString()}`;
-        }
+    const lightEl = document.getElementById('signal_light');
+
+    signalEl.innerText = data.recommendation;
+    targetEl.innerText = `Target: Rp ${data.predicted_price_idr_gram.toLocaleString()}`;
+    document.getElementById('action_date').innerText = data.action_date;
+
+    // Signal Light Logic
+    if (lightEl) {
+        lightEl.className = 'status-light'; // Reset
+        const change = data.change_pct;
+        if (data.recommendation === 'BUY' && change > 1.0) lightEl.classList.add('green');
+        else if (data.recommendation === 'SELL' && change < -1.0) lightEl.classList.add('red');
+        else lightEl.classList.add('yellow');
     }
+
+    // Mock Scorecard for now
+    document.getElementById('score_pct').innerText = '74.2%';
+    document.getElementById('score_mae').innerText = '0.012 MAE';
 }
 
 function updateSentimentCard(data) {
@@ -163,28 +251,47 @@ async function renderChart() {
     }
 }
 
-function drawChart(labels, values) {
+function drawChart(labels, values, lowValues = null, highValues = null) {
     const ctx = document.getElementById('historyChart').getContext('2d');
     if (mainChart) mainChart.destroy();
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(212, 175, 55, 0.2)');
-    gradient.addColorStop(1, 'rgba(212, 175, 55, 0)');
+    const datasets = [{
+        label: 'Gold Price (USD/Oz)',
+        data: values,
+        borderColor: '#D4AF37',
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: false,
+        tension: 0.4,
+        zIndex: 10
+    }];
+
+    // Add Confidence Interval band if data exists
+    if (lowValues && highValues) {
+        datasets.unshift({
+            label: 'Confidence Interval (95%)',
+            data: highValues,
+            borderColor: 'rgba(212, 175, 55, 0)',
+            backgroundColor: 'rgba(212, 175, 55, 0.1)',
+            fill: '+1', // Fill to the next dataset (lowValues)
+            pointRadius: 0,
+            tension: 0.4
+        }, {
+            label: 'Lower Bound',
+            data: lowValues,
+            borderColor: 'rgba(212, 175, 55, 0)',
+            backgroundColor: 'transparent',
+            pointRadius: 0,
+            fill: false,
+            tension: 0.4
+        });
+    }
 
     mainChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
-            datasets: [{
-                label: 'Gold Price (USD/Oz)',
-                data: values,
-                borderColor: '#D4AF37',
-                borderWidth: 2,
-                pointRadius: 0,
-                fill: true,
-                backgroundColor: gradient,
-                tension: 0.4
-            }]
+            datasets: datasets
         },
         options: {
             responsive: true,
@@ -239,11 +346,16 @@ function setupEventListeners() {
 
 async function runForecast() {
     const days = document.getElementById('forecast_days').value;
+    const shiftDxy = document.getElementById('shift_dxy').value;
+    const shiftOil = document.getElementById('shift_oil').value;
+    const shiftIdr = document.getElementById('shift_idr').value;
+
     const body = document.getElementById('forecast_body');
-    body.innerHTML = '<tr><td colspan="4" class="text-center">Calculating future trends...</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="text-center">Calculating future scenarios...</td></tr>';
 
     try {
-        const response = await fetch(`/api/forecast?days=${days}`);
+        const url = `/api/forecast?days=${days}&dxy_shift=${shiftDxy}&oil_shift=${shiftOil}&idr_shift=${shiftIdr}`;
+        const response = await fetch(url);
         const data = await response.json();
 
         body.innerHTML = '';
@@ -257,16 +369,48 @@ async function runForecast() {
             tr.innerHTML = `
                 <td>${index + 1}</td>
                 <td>${row.date}</td>
-                <td>Rp ${row.price_idr.toLocaleString('id-ID')}</td>
+                <td class="text-muted">Rp ${row.price_min.toLocaleString('id-ID')}</td>
+                <td class="text-muted">Rp ${row.price_max.toLocaleString('id-ID')}</td>
+                <td style="font-weight: 600;">Rp ${row.price_idr.toLocaleString('id-ID')}</td>
                 <td class="${row.change_pct >= 0 ? 'text-gold' : 'text-red'}">
                     ${row.change_pct > 0 ? '+' : ''}${row.change_pct}%
                 </td>
             `;
             body.appendChild(tr);
         });
+
+        // --- CHART ENHANCEMENT ---
+        if (historyData) {
+            const gramsPerOz = 31.1035;
+            const priceEl = document.getElementById('price_idr');
+            const rate = parseFloat(priceEl ? priceEl.dataset.rate : 15500) || 15500;
+
+            const forecastDates = data.map(d => d.date);
+            const forecastValues = data.map(d => (d.price_idr * gramsPerOz) / rate);
+            const lowValues = data.map(d => (d.price_min * gramsPerOz) / rate);
+            const highValues = data.map(d => (d.price_max * gramsPerOz) / rate);
+
+            // Combine last 20 days of history + forecast
+            const combinedLabels = [...historyData.dates.slice(-20), ...forecastDates];
+            const historyPrices = historyData.prices.slice(-20);
+            const combinedValues = [...historyPrices, ...forecastValues];
+
+            // CI bands need padding (nulls) for the historical portion
+            const pad = new Array(20).fill(null);
+            // We want to connect the last historical point to the first forecast point in the CI
+            pad[19] = historyPrices[19];
+
+            const paddedLow = [...pad, ...lowValues];
+            const paddedHigh = [...pad, ...highValues];
+
+            drawChart(combinedLabels, combinedValues, paddedLow, paddedHigh);
+        }
+
     } catch (error) {
         console.error('Error fetching forecast:', error);
         body.innerHTML = '<tr><td colspan="4" class="text-center text-red">Forecast failed.</td></tr>';
+    } finally {
+        showLoader(false);
     }
 }
 

@@ -48,10 +48,33 @@
 
             <div class="grid-container">
                 <!-- ROI Chart -->
-                <div class="card chart-card glass grid-span-full">
+                <div class="card chart-card glass grid-span-2">
                     <div class="card-header">Year-over-Year ROI (%)</div>
                     <div class="chart-container">
                         <canvas id="roiChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Model Stats Card -->
+                <div class="card stats-card glass">
+                    <div class="card-header">Model Training Intelligence</div>
+                    <div class="analytics-metrics" id="model_metrics_ui">
+                        <div class="metric-item">
+                            <span class="label">Accuracy (Relative)</span>
+                            <span id="metric_accuracy" class="value text-gold">--%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">MAE (Mean Absolute Error)</span>
+                            <span id="metric_mae" class="value">--</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">Dataset Coverage</span>
+                            <span id="metric_coverage" class="value">-- samples</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">Last Trained</span>
+                            <span id="metric_timestamp" class="value" style="font-size: 0.85rem;">--</span>
+                        </div>
                     </div>
                 </div>
 
