@@ -4,8 +4,6 @@
 
 {% block header_title %}Annual Gold Performance{% endblock %}
 
-{% block loading_text %}Gathering Annual Market Data...{% endblock %}
-
 {% block content %}
 <div class="grid-container">
     <!-- ROI Chart -->
@@ -16,13 +14,11 @@
         </div>
     </div>
 
-    <!-- Accuracy Scorecard Card -->
     <div class="card glass">
         <div class="card-header">
-            AI Model Accuracy Scorecard
-            <button id="retrain_btn" class="tf-btn"
-                style="font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
-                <span class="material-symbols-outlined" style="font-size: 1rem;">sync</span> Update Model
+            <span>AI Model Accuracy Scorecard</span>
+            <button id="retrain_btn" class="tf-btn">
+                <span class="material-symbols-outlined">sync</span> Update Model
             </button>
         </div>
         <!-- Training Progress Bar -->
@@ -42,8 +38,8 @@
 
         <div class="scorecard-container">
             <div class="score-main" style="text-align: center; margin: 15px 0;">
-                <div class="score-value" id="metric_accuracy"
-                    style="font-size: 2.5rem; font-weight: 700; color: var(--gold);">--%</div>
+                <div class="score-value" id="metric_accuracy" style="font-size: 2.5rem; color: var(--terminal-gold);">
+                    --%</div>
                 <div class="score-label" style="color: var(--text-muted); font-size: 0.9rem;">Predictive Accuracy</div>
             </div>
             <div class="score-details analytics-metrics" id="score_details">

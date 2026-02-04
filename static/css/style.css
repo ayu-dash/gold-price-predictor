@@ -13,6 +13,14 @@
     --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     --red: #FB5858;
     --green: #4ADE80;
+
+    /* Bloomberg Terminal Aesthetic Variables */
+    --terminal-bg: #000000;
+    --terminal-text: #ffffff;
+    --terminal-gold: #ffb900;
+    --terminal-green: #00ff00;
+    --terminal-red: #ff0000;
+    --font-mono: 'JetBrains Mono', 'Courier New', monospace;
 }
 
 * {
@@ -48,6 +56,54 @@ body {
 .dashboard-container {
     display: flex;
     min-height: 100vh;
+    width: 100%;
+}
+
+/* Scrolling Ticker Tape */
+.ticker-wrap {
+    width: 100%;
+    overflow: hidden;
+    height: 35px;
+    background-color: var(--terminal-bg);
+    border-bottom: 1px solid #333;
+    display: flex;
+    align-items: center;
+    position: relative;
+    z-index: 10;
+}
+
+.ticker {
+    display: flex;
+    white-space: nowrap;
+    animation: ticker 60s linear infinite;
+}
+
+.ticker-item {
+    padding: 0 45px;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ticker-item .change-up {
+    color: var(--terminal-green);
+}
+
+.ticker-item .change-down {
+    color: var(--terminal-red);
+}
+
+@keyframes ticker {
+    0% {
+        transform: translate3d(0, 0, 0);
+    }
+
+    100% {
+        transform: translate3d(-100%, 0, 0);
+    }
 }
 
 /* Sidebar */
@@ -138,10 +194,13 @@ header h1 {
 /* Grid Fluid Architecture */
 .grid-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    /* Reduced min-width for better fit */
-    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 15px;
+    /* Tighter gap for terminal density */
     padding-bottom: 50px;
+    width: 100%;
+    max-width: 100%;
+    /* Ensure it fills the container */
 }
 
 .grid-span-2 {
@@ -165,12 +224,13 @@ header h1 {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--glass-border);
-    border-radius: 12px;
-    /* Smaller radius */
-    padding: 16px;
+    border-radius: 4px;
+    /* Shorter radius */
+    padding: 12px;
     /* Slimmer padding */
     box-shadow: var(--card-shadow);
     transition: border-color 0.2s;
+    position: relative;
 }
 
 .card:hover {
@@ -203,6 +263,13 @@ header h1 {
 }
 
 .card-header {
+    font-family: var(--font-mono);
+    color: var(--terminal-gold);
+    font-weight: 700;
+    text-transform: uppercase;
+    border-bottom: 1px solid #333;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -345,23 +412,36 @@ header h1 {
     overflow-x: auto;
 }
 
-.forecast-table {
+/* Financial Tables */
+.forecast-table,
+.monitor-table {
     width: 100%;
     border-collapse: collapse;
 }
 
-.forecast-table th {
-    text-align: left;
-    padding: 15px;
-    border-bottom: 1px solid var(--glass-border);
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    text-transform: uppercase;
+.forecast-table th,
+.monitor-table th,
+.forecast-table td,
+.monitor-table td {
+    padding: 8px 10px;
+    text-align: right;
+    /* Default align right */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
 }
 
-.forecast-table td {
-    padding: 15px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+.forecast-table th:first-child,
+.monitor-table th:first-child,
+.forecast-table td:first-child,
+.monitor-table td:first-child {
+    text-align: left;
+    /* Ticker/Date left */
+}
+
+.forecast-table tr:hover,
+.monitor-table tr:hover {
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 .forecast-input {
@@ -377,6 +457,15 @@ header h1 {
     padding: 5px 10px;
     border-radius: 5px;
     width: 60px;
+}
+
+.forecast-input input.card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    /* Sharper edges */
+    padding: 12px;
+    box-shadow: var(--card-shadow);
 }
 
 .forecast-input button {

@@ -4,14 +4,12 @@
 
 {% block header_title %}Advanced Technical Analysis{% endblock %}
 
-{% block loading_text %}Crunching Technical Market Indicators...{% endblock %}
-
 {% block content %}
 <div class="grid-container">
     <!-- Timeframe Global Selector -->
-    <div class="card glass grid-span-full" style="padding: 15px;">
-        <div class="timeframe-selector" style="justify-content: center; align-items: center;">
-            <span style="color: var(--text-muted); margin-right: 20px;">Analysis Window:</span>
+    <div class="card glass grid-span-full">
+        <div class="timeframe-selector" style="justify-content: center;">
+            <span class="sub-price" style="margin-right: 20px;">Analysis Window:</span>
             <button class="tf-btn" data-days="30">1 Month</button>
             <button class="tf-btn" data-days="60">2 Months</button>
             <button class="tf-btn active" data-days="90">3 Months</button>
