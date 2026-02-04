@@ -40,13 +40,14 @@
     }
 
     .ticker-item {
-        padding: 0 30px;
+        padding: 0 45px;
+        /* Increased spacing */
         font-family: var(--font-mono);
         font-size: 0.85rem;
         color: #fff;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
     }
 
     .ticker-item .change-up {
@@ -104,10 +105,17 @@
 
     .monitor-table th,
     .monitor-table td {
-        padding: 6px 4px;
-        text-align: center;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        padding: 8px 10px;
+        text-align: right;
+        /* Financial data right-aligned by default */
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         font-size: 0.8rem;
+    }
+
+    .monitor-table th:first-child,
+    .monitor-table td:first-child {
+        text-align: left;
+        /* Ticker name left-aligned */
     }
 
     .monitor-table tr:hover {
@@ -120,6 +128,46 @@
 
     .trend-down {
         color: var(--terminal-red);
+    }
+
+    /* Forecast Table Alignment */
+    .forecast-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .forecast-table th,
+    .forecast-table td {
+        padding: 10px;
+        text-align: right;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+    }
+
+    .forecast-table th:nth-child(2),
+    .forecast-table td:nth-child(2) {
+        text-align: left;
+        /* Date column */
+    }
+
+    /* Card Text Wrapping & Alignment */
+    .sub-price {
+        white-space: nowrap;
+        font-size: 0.85rem;
+    }
+
+    .spread-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+    }
+
+    .simulation-sliders {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        align-items: center;
     }
 
     /* Mobile Responsive Overrides */

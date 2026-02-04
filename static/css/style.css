@@ -28,7 +28,21 @@ body {
     overflow-x: hidden;
     line-height: 1.5;
     font-size: 14px;
-    /* Base size for compact density */
+}
+
+/* Material Symbols Rendering Fix */
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 1.2rem;
+    line-height: 1;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+    vertical-align: middle;
 }
 
 .dashboard-container {
@@ -76,10 +90,11 @@ body {
     font-weight: 500;
 }
 
-.nav-item i {
+.nav-item i,
+.nav-item .material-symbols-outlined {
     margin-right: 12px;
-    font-size: 1rem;
-    width: 20px;
+    font-size: 1.1rem;
+    width: 24px;
     text-align: center;
 }
 
