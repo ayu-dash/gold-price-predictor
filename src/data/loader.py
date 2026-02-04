@@ -110,11 +110,15 @@ def fetch_market_data(period: str = "max") -> pd.DataFrame:
         'DXY': 'DX-Y.NYB',
         'Oil': 'CL=F',
         'SP500': '^GSPC',
+        'NASDAQ': '^IXIC',
         'VIX': '^VIX',
         'GVZ': '^GVZ',
         'Silver': 'SI=F',
         'Copper': 'HG=F',
+        'Platinum': 'PL=F',
+        'Palladium': 'PA=F',
         'US10Y': '^TNX',
+        'USD_CNY': 'CNY=X',
         'Nikkei': '^N225',
         'DAX': '^GDAXI'
     }
@@ -238,9 +242,9 @@ def _fetch_incremental_data(start_date: pd.Timestamp) -> pd.DataFrame:
     """
     tickers = {
         'Gold': 'GC=F', 'USD_IDR': 'IDR=X', 'DXY': 'DX-Y.NYB', 'Oil': 'CL=F',
-        'SP500': '^GSPC', 'VIX': '^VIX', 'GVZ': '^GVZ',
-        'Silver': 'SI=F', 'Copper': 'HG=F',
-        'US10Y': '^TNX', 'Nikkei': '^N225', 'DAX': '^GDAXI'
+        'SP500': '^GSPC', 'NASDAQ': '^IXIC', 'VIX': '^VIX', 'GVZ': '^GVZ',
+        'Silver': 'SI=F', 'Copper': 'HG=F', 'Platinum': 'PL=F', 'Palladium': 'PA=F',
+        'US10Y': '^TNX', 'USD_CNY': 'CNY=X', 'Nikkei': '^N225', 'DAX': '^GDAXI'
     }
 
     data_frames = []

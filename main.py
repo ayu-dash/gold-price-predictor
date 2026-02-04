@@ -63,8 +63,8 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     df_train = df_clean.dropna()
 
     features = [
-        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
-        'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
+        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
+        'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
         'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
     
@@ -141,8 +141,8 @@ def run_prediction(
 ) -> Dict[str, Any]:
     """Generates next-day prediction and returns context."""
     features = [
-        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
-        'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
+        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
+        'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
         'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
     valid_features = [f for f in features if f in df.columns]
@@ -162,6 +162,22 @@ def run_prediction(
     rec_usd, change_pct = predictor.make_recommendation(
         current_price_usd, predicted_price_usd
     )
+    
+    # Get Confidence (if classifier exists)
+    conf_direction = "N/A"
+    conf_score = 0.0
+    if isinstance(model, dict) and 'clf' in model:
+        conf_direction, conf_score = predictor.get_classification_confidence(
+            model['clf'], latest_features
+        )
+        conf_score = round(conf_score * 100, 1)
+        
+        # Re-run recommendation with confidence
+        rec_usd, change_pct = predictor.make_recommendation(
+            current_price_usd, predicted_price_usd,
+            conf_direction=conf_direction,
+            conf_score=conf_score
+        )
 
     return {
         "current_price_idr": current_price_gram,
@@ -170,7 +186,9 @@ def run_prediction(
         "recommendation": rec_usd,
         "current_usd": current_price_usd,
         "current_rate_idr": current_rate_idr,
-        "latest_features": latest_features
+        "latest_features": latest_features,
+        "confidence_score": conf_score,
+        "confidence_direction": conf_direction
     }
 
 
@@ -230,6 +248,19 @@ def main():
     print(f"Change:    {result['change_pct']*100:+.2f}%")
     print(f"Signal:    {result['recommendation']}")
     print("="*42 + "\n")
+
+    # LOGGING
+    from src.data import signal_logger
+    
+    # Log the signal
+    signal_logger.log_daily_signal(
+        date=action_date,
+        price_usd=result['current_usd'],
+        predicted_usd=result['current_usd'] * (1 + result['change_pct']), 
+        signal=result['recommendation'],
+        confidence_score=result['confidence_score'],
+        confidence_direction=result['confidence_direction']
+    )
 
     # Interactive Mode
     days = args.days

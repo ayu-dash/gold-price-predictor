@@ -135,8 +135,8 @@ def get_prediction():
     df['Sentiment'] = sentiment
     
     features = [
-        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
-        'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
+        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
+        'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
         'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
     available_features = [f for f in features if f in df.columns]
@@ -276,8 +276,8 @@ def get_forecast():
     df['Sentiment'] = sentiment
 
     features = [
-        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'VIX_Norm', 'GVZ_Norm',
-        'Silver', 'Copper', 'US10Y', 'Nikkei', 'DAX',
+        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
+        'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
         'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
     ]
     available_features = [f for f in features if f in df.columns]
@@ -299,7 +299,7 @@ def get_forecast():
         new_row_data['Gold'] = current_usd
         new_row_data['USD_IDR'] = current_idr_rate
         # Add slight jitter to macro features to avoid static flatlines if market is open
-        for feat in ['DXY', 'Oil', 'SP500', 'Silver']:
+        for feat in ['DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 'Platinum', 'Palladium']:
             if feat in new_row_data.columns:
                 new_row_data[feat] = new_row_data[feat] * (1 + (live_gold['change_pct']/200))
         
@@ -350,6 +350,14 @@ def charts():
 def signals():
     """Serves the signals analysis page."""
     return render_template("signals.html")
+
+
+@app.route("/api/signals_history")
+def get_signals_history():
+    """Returns the CSV log of signals."""
+    from src.data import signal_logger
+    df = signal_logger.get_signal_history()
+    return jsonify(df.to_dict(orient='records'))
 
 
 @app.route("/api/yearly_stats")

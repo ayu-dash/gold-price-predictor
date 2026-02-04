@@ -1,14 +1,18 @@
 :root {
     --gold: #D4AF37;
     --gold-bright: #FFD700;
-    --bg-dark: #0A0A0B;
-    --bg-sidebar: #050505;
-    --text-main: #E0E0E0;
-    --text-muted: #888888;
-    --glass-bg: rgba(255, 255, 255, 0.05);
-    --glass-border: rgba(255, 255, 255, 0.1);
-    --red: #FF4B4B;
-    --green: #4BFF4B;
+    --bg-dark: #050505;
+    /* Darker background */
+    --bg-sidebar: #020202;
+    --text-main: #EDEDED;
+    /* Brighter text */
+    --text-muted: #9CA3AF;
+    --glass-bg: rgba(25, 25, 25, 0.6);
+    /* Less transparent for readability */
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    --red: #FB5858;
+    --green: #4ADE80;
 }
 
 * {
@@ -18,10 +22,13 @@
 }
 
 body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background-color: var(--bg-dark);
     color: var(--text-main);
     overflow-x: hidden;
+    line-height: 1.5;
+    font-size: 14px;
+    /* Base size for compact density */
 }
 
 .dashboard-container {
@@ -31,19 +38,23 @@ body {
 
 /* Sidebar */
 .sidebar {
-    width: 260px;
+    width: 240px;
+    /* Slimmer sidebar */
     background-color: var(--bg-sidebar);
     border-right: 1px solid var(--glass-border);
-    padding: 30px 20px;
+    padding: 24px 16px;
     display: flex;
     flex-direction: column;
 }
 
 .logo {
     font-weight: 700;
-    font-size: 1.2rem;
-    letter-spacing: 2px;
-    margin-bottom: 50px;
+    font-size: 1.1rem;
+    letter-spacing: 1px;
+    margin-bottom: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .gold-text {
@@ -51,57 +62,69 @@ body {
 }
 
 .nav-item {
-    padding: 15px;
-    margin-bottom: 5px;
-    border-radius: 8px;
+    padding: 10px 14px;
+    /* Compact nav */
+    margin-bottom: 4px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     color: var(--text-muted);
     text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
 }
 
 .nav-item i {
-    margin-right: 15px;
-    font-size: 1.1rem;
+    margin-right: 12px;
+    font-size: 1rem;
+    width: 20px;
+    text-align: center;
 }
 
 .nav-item:hover,
 .nav-item.active {
-    background: var(--glass-bg);
+    background: rgba(255, 255, 255, 0.05);
     color: var(--gold);
+    border: 1px solid var(--glass-border);
 }
 
 /* Main Content */
 .main-content {
     flex: 1;
-    padding: 40px;
-    background: linear-gradient(135deg, #0A0A0B 0%, #151518 100%);
+    padding: 24px 32px;
+    /* Reduced outer padding */
+    background: radial-gradient(circle at top right, #1a1a1a 0%, #050505 40%);
 }
 
 header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 40px;
+    margin-bottom: 24px;
+    /* Reduced margins */
 }
 
 header h1 {
-    font-size: 1.8rem;
+    font-size: 1.5rem;
     font-weight: 600;
+    letter-spacing: -0.5px;
 }
 
 .date-display {
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    font-family: 'JetBrains Mono', monospace;
+    /* Monospace for numbers/dates */
 }
 
 /* Grid */
 .grid-container {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 30px;
+    gap: 20px;
+    /* Tighter gap */
 }
 
 .grid-span-2 {
@@ -115,17 +138,19 @@ header h1 {
 /* Cards */
 .card {
     background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--glass-border);
-    border-radius: 20px;
-    padding: 25px;
-    transition: transform 0.3s ease;
+    border-radius: 12px;
+    /* Smaller radius */
+    padding: 20px;
+    /* Slimmer padding */
+    box-shadow: var(--card-shadow);
+    transition: border-color 0.2s;
 }
 
 .card:hover {
-    transform: translateY(-5px);
-    border-color: rgba(212, 175, 55, 0.3);
+    border-color: rgba(212, 175, 55, 0.4);
 }
 
 /* Timeframe Selector */

@@ -4,12 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trading Signals | Gold Futures Pro</title>
+    <title>Signal Intelligence | Gold Futures Pro</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
         rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -41,79 +42,60 @@
         <!-- Main Content -->
         <main class="main-content">
             <header>
-                <h1>AI Signaling Intelligence</h1>
+                <h1>Signal Intelligence</h1>
                 <div class="date-display" id="current_date">--</div>
             </header>
 
             <div class="grid-container">
-                <!-- Current Signal Detail -->
-                <div class="card signal-card glass grid-span-2">
-                    <div class="card-header">Current Active Recommendation</div>
-                    <div class="price-container">
-                        <span id="signal_main" class="main-price text-gold">--</span>
-                        <div id="signal_target" class="main-price"
-                            style="font-size: 1.1rem; margin-top: 10px; color: var(--text-muted);">Target: --</div>
+                <!-- Summary Cards -->
+                <div class="card glass">
+                    <div class="card-header">
+                        Total Signals
+                        <span class="material-symbols-outlined" style="color: var(--gold);">history</span>
                     </div>
-                    <p id="signal_logic" class="sub-price" style="margin-top: 15px;">
-                        The AI is currently analyzing market momentum, geopolitical risks, and currency fluctuations to
-                        provide this timing window.
-                    </p>
+                    <div class="main-price" id="total_signals" style="margin: 15px 0;">--</div>
+                    <div class="sub-price">Logs recorded</div>
                 </div>
 
-                <!-- Market Risk Matrix -->
                 <div class="card glass">
-                    <div class="card-header">Market Risk Matrix</div>
-                    <div class="risk-matrix">
-                        <div class="risk-item">
-                            <span class="risk-label">USD Strength</span>
-                            <div class="risk-indicator" id="risk_usd">--</div>
-                        </div>
-                        <div class="risk-item">
-                            <span class="risk-label">Inflation Hedge</span>
-                            <div class="risk-indicator" id="risk_inf">--</div>
-                        </div>
-                        <div class="risk-item">
-                            <span class="risk-label">Geopolitical</span>
-                            <div class="risk-indicator" id="risk_geo">--</div>
-                        </div>
+                    <div class="card-header">
+                        Recent Bias
+                        <span class="material-symbols-outlined" style="color: var(--gold);">bullseye</span>
+                    </div>
+                    <div class="main-price" id="win_rate" style="margin: 15px 0;">--</div>
+                    <div class="sub-price">Based on price movement > 0.1%</div>
+                </div>
+
+                <div class="card glass">
+                    <div class="card-header">
+                        Signal Distribution
+                        <span class="material-symbols-outlined" style="color: var(--gold);">pie_chart</span>
+                    </div>
+                    <div
+                        style="height: 100px; display: flex; align-items: center; justify-content: center; margin-top: 10px;">
+                        <canvas id="signalDistChart"></canvas>
                     </div>
                 </div>
 
-                <!-- Signal Factors -->
-                <div class="card glass">
-                    <div class="card-header">Momentum Health</div>
-                    <div id="momentum_status" class="signal-value text-gold">STABLE</div>
-                    <p class="sub-price">Based on RSI & SMA Crossovers.</p>
-                </div>
-
-                <div class="card glass">
-                    <div class="card-header">Geopolitical Risk</div>
-                    <div id="geopol_risk" class="signal-value text-red">ELEVATED</div>
-                    <p class="sub-price">Global news sentiment focus.</p>
-                </div>
-
-                <div class="card glass">
-                    <div class="card-header">Currency Pressure</div>
-                    <div id="currency_pressure" class="signal-value text-gold">NEUTRAL</div>
-                    <p class="sub-price">USD/IDR volatility impacts.</p>
-                </div>
-
-                <!-- Recent Signals History -->
+                <!-- Signal Log Table -->
                 <div class="card glass grid-span-full">
-                    <div class="card-header">Recent Decision History</div>
+                    <div class="card-header">
+                        Signal Analysis Archive
+                    </div>
                     <div class="forecast-table-container">
-                        <table class="forecast-table">
+                        <table class="forecast-table" id="signalTable">
                             <thead>
                                 <tr>
                                     <th>Date</th>
-                                    <th>Price (IDR/g)</th>
-                                    <th>AI Signal</th>
-                                    <th>Outcome (Predictive)</th>
+                                    <th>Action</th>
+                                    <th>Confidence</th>
+                                    <th>Price (USD)</th>
+                                    <th>Target (USD)</th>
                                 </tr>
                             </thead>
-                            <tbody id="signal_history_body">
+                            <tbody>
                                 <tr>
-                                    <td colspan="4" class="text-center">Synchronizing with AI core...</td>
+                                    <td colspan="5" class="text-center text-muted">Loading history...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -123,15 +105,95 @@
         </main>
     </div>
 
-    <!-- Loading Modal -->
-    <div id="loading_overlay" class="overlay">
-        <div class="loader-content">
-            <div class="spinner"></div>
-            <p>Decoding AI Signals...</p>
-        </div>
-    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Update Date
+            const now = new Date();
+            document.getElementById('current_date').innerText = now.toLocaleDateString('en-US', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+            });
 
-    <script src="{{ url_for('static', filename='js/signals.js') }}"></script>
+            try {
+                const response = await fetch('/api/signals_history');
+                const data = await response.json();
+
+                // Update Metrics
+                const total = data.length;
+                document.getElementById('total_signals').innerText = total;
+
+                // Simple Simulated Win Rate
+                let counts = { 'BUY': 0, 'SELL': 0, 'ACCUMULATE': 0, 'REDUCE': 0, 'WAIT': 0 };
+                data.forEach(r => {
+                    const s = r.Signal.toUpperCase();
+                    if (counts[s] !== undefined) counts[s]++;
+                });
+
+                // Render Chart
+                const ctx = document.getElementById('signalDistChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Bullish', 'Bearish', 'Wait'],
+                        datasets: [{
+                            data: [
+                                counts['BUY'] + counts['ACCUMULATE'],
+                                counts['SELL'] + counts['REDUCE'],
+                                counts['WAIT']
+                            ],
+                            backgroundColor: ['#4caf50', '#f44336', '#9e9e9e'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        cutout: '70%'
+                    }
+                });
+
+                // Calculate "Bias" 
+                const bullish = counts['BUY'] + counts['ACCUMULATE'];
+                const bearish = counts['SELL'] + counts['REDUCE'];
+                let biasText = "Neutral";
+                if (bullish > bearish) biasText = "Bullish";
+                if (bearish > bullish) biasText = "Bearish";
+
+                document.getElementById('win_rate').innerText = biasText;
+
+                // Render Table
+                const tbody = document.querySelector('#signalTable tbody');
+                tbody.innerHTML = '';
+
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No signals recorded yet.</td></tr>';
+                    return;
+                }
+
+                data.forEach(row => {
+                    const tr = document.createElement('tr');
+
+                    let badgeClass = 'risk-med';
+                    const sig = row.Signal.toUpperCase();
+                    if (sig === 'BUY' || sig === 'ACCUMULATE') badgeClass = 'risk-low';
+                    if (sig === 'SELL' || sig === 'REDUCE') badgeClass = 'risk-high';
+                    if (sig === 'WAIT') badgeClass = 'risk-med';
+
+                    tr.innerHTML = `
+                        <td>${row.Date}</td>
+                        <td><span class="risk-indicator ${badgeClass}">${row.Signal}</span></td>
+                        <td>${row.Confidence}</td>
+                        <td>$${row.Price_USD.toLocaleString()}</td>
+                        <td>$${row.Predicted_USD.toLocaleString()}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+            } catch (e) {
+                console.error("Error loading signals:", e);
+            }
+        });
+    </script>
 </body>
 
 </html>
