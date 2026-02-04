@@ -18,12 +18,14 @@ app = Flask(__name__)
 CORS(app)
 
 # Path to history and model
-CSV_PATH = "gold_history.csv"
+CSV_PATH = "data/gold_history.csv"
 MODEL_PATH = "models/gold_model.pkl"
 
 # Global model variable
 trained_model = None
 
+import threading
+get_model_lock = threading.Lock()
 
 import sys
 import subprocess
@@ -31,7 +33,16 @@ import subprocess
 def get_model():
     """Lazy loads or returns the global trained model ensemble. Auto-retrains on failure."""
     global trained_model
-    if trained_model is None:
+    
+    # Quick check without lock
+    if trained_model is not None:
+        return trained_model
+
+    with get_model_lock:
+        # Double-check inside lock
+        if trained_model is not None:
+            return trained_model
+            
         paths = {
             'med': "models/gold_model_med.pkl",
             'low': "models/gold_model_low.pkl",
@@ -613,7 +624,12 @@ def retrain_model():
             )
              if result.returncode == 0:
                  print("\n[Manual] Training Success!")
-                 print(result.stdout)
+                 print(result.stdout[-200:])
+                 
+                 # INVALIDATE CACHE
+                 global trained_model
+                 trained_model = None
+                 print("[Manual] Cache cleared. New model ready.")
              else:
                  print("\n[Manual] Training Failed!")
                  print(result.stderr)
@@ -678,9 +694,23 @@ def get_full_history():
 
     return jsonify(data)
 
+    return jsonify(data)
+
 if __name__ == "__main__":
     # Ensure scheduler only runs in the reloader process (not the main watcher)
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         start_scheduler()
     
+    # --- COLD START CHECK ---
+    # If models are missing (fresh install or wiped), train immediately.
+    # We check independently of reloader to ensure it exists before serving.
+    required_model = "models/gold_model_med.pkl"
+    if not os.path.exists(required_model):
+        print("\n[Cold Start] Model not found. Initializing training... (This may take 1-2 mins)")
+        try:
+             subprocess.run([sys.executable, "main.py", "--days", "1"], check=True)
+             print("[Cold Start] Training Complete. Starting Server...")
+        except Exception as e:
+            print(f"[Cold Start] Failed to train initial model: {e}")
+
     app.run(debug=True, port=5000)

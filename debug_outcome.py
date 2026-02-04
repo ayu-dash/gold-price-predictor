@@ -6,14 +6,15 @@ import sys
 # Simulation of logic in app.py
 def debug_logic():
     CSV_PATH = "gold_history.csv"
+    CSV_PATH = "data/gold_history.csv"
     SIGNAL_LOG_PATH = "data/signals.csv"
     
     # Load Signals
     signals_df = pd.read_csv(SIGNAL_LOG_PATH)
     
     # Load History
-    history_df = pd.read_csv(CSV_PATH)
-    history_df['Date'] = pd.to_datetime(history_df['Date']).dt.strftime('%Y-%m-%d')
+    history_df = pd.read_csv(CSV_PATH, parse_dates=['Date'])
+    history_df['Date'] = history_df['Date'].dt.strftime('%Y-%m-%d')
     actual_prices = history_df.set_index('Date')['Gold'].to_dict()
     
     print(f"Debug: Jan 30 Price in history: {actual_prices.get('2026-01-30')}")

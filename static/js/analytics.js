@@ -19,11 +19,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
                 alert("Failed to start training: " + err);
             } finally {
-                // Re-enable after 5 seconds just to prevent spam, though real training takes longer
+                // Re-enable after 60 seconds (prevents spamming while background process runs)
                 setTimeout(() => {
                     retrainBtn.disabled = false;
                     retrainBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 1rem;">sync</span> Update Model';
-                }, 5000);
+                }, 60000);
             }
         });
     }

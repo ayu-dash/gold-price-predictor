@@ -160,7 +160,7 @@ def fetch_market_data(period: str = "max") -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def update_local_database(csv_path: str = "gold_history.csv") -> pd.DataFrame:
+def update_local_database(csv_path: str = "data/gold_history.csv") -> pd.DataFrame:
     """
     Updates the local CSV database with new daily data.
     

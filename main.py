@@ -112,15 +112,22 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     # ---------------------------------------------
     
     # --- 6. Evaluation ---
-    rmse, mae, _ = predictor.evaluate_model(med_model, X_test, y_test)
-    logger.info(f"Median Model Results -> MAE: {mae:.4f}, RMSE: {rmse:.4f}")
+    rmse_med, mae_med, _ = predictor.evaluate_model(med_model, X_test, y_test)
+    rmse_low, mae_low, _ = predictor.evaluate_model(low_model, X_test, y_test)
+    rmse_high, mae_high, _ = predictor.evaluate_model(high_model, X_test, y_test)
+    
+    logger.info(f"Median Model -> MAE: {mae_med:.4f}")
     
     # Save Metrics Metadata
     import json
     metrics = {
         "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        "mae": round(float(mae), 6),
-        "rmse": round(float(rmse), 6),
+        "models": {
+            "median": {"mae": round(float(mae_med), 6), "rmse": round(float(rmse_med), 6)},
+            "low": {"mae": round(float(mae_low), 6), "rmse": round(float(rmse_low), 6)},
+            "high": {"mae": round(float(mae_high), 6), "rmse": round(float(rmse_high), 6)},
+            "classifier": {"accuracy": round(clf_acc, 4)}
+        },
         "train_samples": len(X_train),
         "test_samples": len(X_test),
         "features_used": valid_features

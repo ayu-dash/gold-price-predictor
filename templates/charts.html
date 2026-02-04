@@ -19,30 +19,31 @@
         </div>
     </div>
 
-    <!-- Main Price & SMAs -->
+    <!-- Price Action & SMAs -->
     <div class="card chart-card glass grid-span-full">
-        <div class="card-header">Price Action & Moving Averages (SMA 50, 200)</div>
+        <div class="card-header">Price Action & Moving Averages (With Zoom/Pan)</div>
         <div class="chart-container" style="height: 400px;">
-            <canvas id="priceChart"></canvas>
+            <div id="priceChart"></div>
         </div>
     </div>
 
     <!-- RSI Chart -->
     <div class="card chart-card glass grid-span-full">
-        <div class="card-header">Relative Strength Index (RSI 14-period)</div>
+        <div class="card-header">Relative Strength Index (RSI 14)</div>
         <div class="chart-container" style="height: 200px;">
-            <canvas id="rsiChart"></canvas>
+            <div id="rsiChart"></div>
         </div>
     </div>
 
     <!-- MACD Chart -->
     <div class="card chart-card glass grid-span-full">
-        <div class="card-header">MACD (Moving Average Convergence Divergence)</div>
+        <div class="card-header">MACD (Momentum)</div>
         <div class="chart-container" style="height: 250px;">
-            <canvas id="macdChart"></canvas>
+            <div id="macdChart"></div>
         </div>
     </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 {% endblock %}
 
 {% block scripts %}
