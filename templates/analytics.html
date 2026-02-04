@@ -33,14 +33,27 @@
             </div>
             <div class="score-details analytics-metrics" id="score_details">
                 <div class="metric-item">
-                    <span class="label">Reliability Index:</span>
+                    <span class="label">Real Win Rate (Reliability):</span>
                     <span id="metric_reliability" class="value text-gold">Calculating...</span>
                 </div>
                 <div class="metric-item">
-                    <span class="label">Avg Prediction Error (MAE):</span>
-                    <span id="metric_mae" class="value">--</span>
+                    <span class="label">Directional Accuracy (Classifier):</span>
+                    <span id="metric_clf_acc" class="value">--</span>
+                </div>
+                <div class="metric-item"
+                    style="border-top: 1px solid var(--glass-border); padding-top: 10px; margin-top: 10px;">
+                    <span class="label">Median Model (Main) MAE:</span>
+                    <span id="metric_mae_med" class="value">--</span>
                 </div>
                 <div class="metric-item">
+                    <span class="label">Low Model (Support) MAE:</span>
+                    <span id="metric_mae_low" class="value">--</span>
+                </div>
+                <div class="metric-item">
+                    <span class="label">High Model (Resistance) MAE:</span>
+                    <span id="metric_mae_high" class="value">--</span>
+                </div>
+                <div class="metric-item" style="border-top: 1px solid var(--glass-border); padding-top: 10px;">
                     <span class="label">Data Samples Covered:</span>
                     <span id="metric_coverage" class="value">--</span>
                 </div>

@@ -46,13 +46,27 @@ async function fetchModelMetrics() {
 
         // 1. Display Training Metrics
         if (metricsData && !metricsData.error) {
-            document.getElementById('metric_mae').innerText = metricsData.mae.toFixed(4);
             document.getElementById('metric_coverage').innerText = `${metricsData.train_samples + metricsData.test_samples} total`;
             document.getElementById('metric_timestamp').innerText = metricsData.timestamp;
 
-            // Show MAE as "AVG Training Error"
-            const errorMargin = (metricsData.mae * 100);
-            document.getElementById('metric_accuracy').innerText = `±${errorMargin.toFixed(2)}%`;
+            // Handle new nested structure vs old flat structure
+            if (metricsData.models) {
+                const m = metricsData.models;
+                document.getElementById('metric_mae_med').innerText = m.median.mae.toFixed(4);
+                document.getElementById('metric_mae_low').innerText = m.low.mae.toFixed(4);
+                document.getElementById('metric_mae_high').innerText = m.high.mae.toFixed(4);
+                document.getElementById('metric_clf_acc').innerText = `${(m.classifier.accuracy * 100).toFixed(1)}%`;
+
+                // Big Accuracy Score (Use Median MAE)
+                const errorMargin = (m.median.mae * 100);
+                document.getElementById('metric_accuracy').innerText = `±${errorMargin.toFixed(2)}%`;
+            } else {
+                // Fallback for old flat structure
+                document.getElementById('metric_mae_med').innerText = metricsData.mae.toFixed(4);
+                const errorMargin = (metricsData.mae * 100);
+                document.getElementById('metric_accuracy').innerText = `±${errorMargin.toFixed(2)}%`;
+            }
+
             document.querySelector('.score-label').innerText = "Model Training Error (Margin)";
         }
 

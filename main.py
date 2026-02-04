@@ -138,7 +138,7 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
         json.dump(metrics, f, indent=4)
     logger.info(f"Performance metrics saved to {metrics_path}")
     
-    return med_model, mae
+    return med_model, mae_med
 
 
 def run_prediction(
