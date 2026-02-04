@@ -1,7 +1,7 @@
 {
-    "timestamp": "2026-02-04 17:26:35",
-    "mae": 0.008695,
-    "rmse": 0.012156,
+    "timestamp": "2026-02-04 17:51:57",
+    "mae": 0.00793,
+    "rmse": 0.011565,
     "train_samples": 3527,
     "test_samples": 882,
     "features_used": [

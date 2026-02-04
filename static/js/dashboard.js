@@ -77,6 +77,51 @@ function updatePriceDisplay(data) {
 
     // Update Spread Radar & Portfolio
     updateSpreadAndPortfolio(data.price_idr_gram);
+
+    // --- CHART REALTIME PUSH ---
+    // Instantly update the last point of the chart if it exists
+    if (mainChart && mainChart.data.datasets.length === 1) {
+        // Assuming the last point is "Today/Now" (which our backend ensures)
+        const lastIdx = mainChart.data.datasets[0].data.length - 1;
+        mainChart.data.datasets[0].data[lastIdx] = data.price_usd;
+        mainChart.update();
+    }
+    // ---------------------------
+
+    // --- REALTIME TARGET SYNC ---
+    // If we have a stored forecast return, update the target price and signal dynamically
+    // so they stay consistent with the moving real-time price.
+    if (window.lastForecastPct !== undefined) {
+        reassessSignal(newPrice, window.lastForecastPct);
+    }
+}
+
+function reassessSignal(currentPriceIdr, forecastPct) {
+    // ForecastPct is in percent (e.g. 1.2 for 1.2%)
+    const predictedPrice = currentPriceIdr * (1 + (forecastPct / 100));
+    const targetEl = document.getElementById('target_price');
+    const signalEl = document.getElementById('signal_value');
+    const lightEl = document.getElementById('signal_light');
+
+    // Update Target Text
+    if (targetEl) {
+        targetEl.innerText = `Target: Rp ${Math.round(predictedPrice).toLocaleString('id-ID')}`;
+    }
+
+    // Recalculate Signal (Threshold 0.5% = 0.5)
+    let recommendation = 'HOLD';
+    if (forecastPct > 0.5) recommendation = 'BUY';
+    else if (forecastPct < -0.5) recommendation = 'SELL';
+
+    if (signalEl) signalEl.innerText = recommendation;
+
+    // Update Light
+    if (lightEl) {
+        lightEl.className = 'status-light'; // Reset
+        if (recommendation === 'BUY') lightEl.classList.add('green');
+        else if (recommendation === 'SELL') lightEl.classList.add('red');
+        else lightEl.classList.add('yellow');
+    }
 }
 
 function updateSpreadAndPortfolio(currentPrice) {
@@ -182,11 +227,26 @@ async function updateDashboardData() {
 
         // Store physical price for spread calculation
         window.lastPhysicalPrice = data.physical_price_idr;
+        // Store forecast return for realtime sync
+        window.lastForecastPct = data.change_pct;
+
+        // --- SIGNAL DISCREPANCY FIX ---
+        // Explicitly update the main price display to match the "Current Price" 
+        // returned by the prediction API. This ensures the Signal (which is based on this price)
+        // makes sense visually to the user.
         if (data.current_price_idr_gram) {
             const priceEl = document.getElementById('price_idr');
-            if (priceEl) priceEl.dataset.rate = data.current_idr_rate;
-            updateSpreadAndPortfolio(data.current_price_idr_gram);
+            if (priceEl) {
+                priceEl.dataset.rate = data.current_idr_rate;
+                // Force update the visual display
+                updatePriceDisplay({
+                    price_idr_gram: data.current_price_idr_gram,
+                    price_usd: data.current_price_usd,
+                    change_pct: data.daily_change_pct // Use actual daily change
+                });
+            }
         }
+        // -----------------------------
 
     } catch (error) {
         console.error('Error fetching prediction:', error);
@@ -203,7 +263,31 @@ function updateSignalCard(data) {
     const lightEl = document.getElementById('signal_light');
 
     signalEl.innerText = data.recommendation;
+
+    // Display Target + Confidence
+    // Display Target
     targetEl.innerText = `Target: Rp ${data.predicted_price_idr_gram.toLocaleString()}`;
+
+    // Display Confidence (Create element if missing)
+    let confEl = document.getElementById('signal_conf');
+    if (!confEl) {
+        confEl = document.createElement('div');
+        confEl.id = 'signal_conf';
+        confEl.style.fontSize = '0.8rem';
+        confEl.style.color = '#888';
+        confEl.style.marginTop = '4px';
+        // Append after targetEl
+        targetEl.parentNode.insertBefore(confEl, targetEl.nextSibling);
+    }
+
+    if (data.confidence_score > 0) {
+        confEl.innerText = `Prob. ${data.confidence_direction}: ${data.confidence_score}%`;
+        // Color code logic
+        confEl.style.color = data.confidence_direction === 'UP' ? '#4caf50' : '#f44336';
+    } else {
+        confEl.innerText = '';
+    }
+
     document.getElementById('action_date').innerText = data.action_date;
 
     // Signal Light Logic
@@ -214,10 +298,6 @@ function updateSignalCard(data) {
         else if (data.recommendation === 'SELL' && change < -1.0) lightEl.classList.add('red');
         else lightEl.classList.add('yellow');
     }
-
-    // Mock Scorecard for now
-    document.getElementById('score_pct').innerText = '74.2%';
-    document.getElementById('score_mae').innerText = '0.012 MAE';
 }
 
 function updateSentimentCard(data) {

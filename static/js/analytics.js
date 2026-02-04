@@ -29,6 +29,22 @@ async function fetchModelMetrics() {
         const accuracy = Math.max(0, (1 - (data.mae / 0.02)) * 100);
         document.getElementById('metric_accuracy').innerText = `${accuracy.toFixed(1)}%`;
 
+        // Reliability Logic
+        const reliabilityEl = document.getElementById('metric_reliability');
+        let badgeText = 'Low';
+        let badgeColor = 'text-red';
+
+        if (accuracy > 98.0) {
+            badgeText = 'High';
+            badgeColor = 'text-green';
+        } else if (accuracy > 90.0) {
+            badgeText = 'Medium';
+            badgeColor = 'text-gold';
+        }
+
+        reliabilityEl.innerText = badgeText;
+        reliabilityEl.className = badgeColor;
+
     } catch (error) {
         console.error('Error fetching model metrics:', error);
     }

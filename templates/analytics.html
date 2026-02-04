@@ -55,25 +55,19 @@
                     </div>
                 </div>
 
-                <!-- Model Stats Card -->
-                <div class="card stats-card glass">
-                    <div class="card-header">Model Training Intelligence</div>
-                    <div class="analytics-metrics" id="model_metrics_ui">
-                        <div class="metric-item">
-                            <span class="label">Accuracy (Relative)</span>
-                            <span id="metric_accuracy" class="value text-gold">--%</span>
+                <!-- Accuracy Scorecard Card (Moved from Dashboard) -->
+                <div class="card glass">
+                    <div class="card-header">Model Accuracy Scorecard</div>
+                    <div class="scorecard-container">
+                        <div class="score-main">
+                            <div class="score-value" id="metric_accuracy">--%</div>
+                            <div class="score-label">Predictive Accuracy</div>
                         </div>
-                        <div class="metric-item">
-                            <span class="label">MAE (Mean Absolute Error)</span>
-                            <span id="metric_mae" class="value">--</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="label">Dataset Coverage</span>
-                            <span id="metric_coverage" class="value">-- samples</span>
-                        </div>
-                        <div class="metric-item">
-                            <span class="label">Last Trained</span>
-                            <span id="metric_timestamp" class="value" style="font-size: 0.85rem;">--</span>
+                        <div class="score-details" id="score_details">
+                            Reliability: <span id="metric_reliability" class="text-gold">Calculating...</span><br>
+                            Avg Error (MAE): <span id="metric_mae">--</span><br>
+                            <span style="font-size: 0.8rem; opacity: 0.7;">Samples: <span
+                                    id="metric_coverage">--</span></span>
                         </div>
                     </div>
                 </div>

@@ -88,23 +88,31 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
     y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
 
-    logger.info(f"Training Quantile Ensemble on {len(X_train)} samples.")
+    # --- 4. Quantile Regression Training ---
+    print("\n--- Training Model Ensemble (Low/Med/High) ---")
     
-    # Train 3 models for confidence intervals
-    model_med, _, _ = predictor.train_model(X_train, y_train, quantile=0.5)
-    model_low, _, _ = predictor.train_model(X_train, y_train, quantile=0.05)
-    model_high, _, _ = predictor.train_model(X_train, y_train, quantile=0.95)
+    # Train Median (Main Forecast)
+    med_model, X_test, y_test = predictor.train_model(X, y, quantile=0.5)
+    predictor.save_model(med_model, "models/gold_model_med.pkl")
     
-    # Persistence
-    predictor.save_model(model_med, "models/gold_model_med.pkl")
-    predictor.save_model(model_low, "models/gold_model_low.pkl")
-    predictor.save_model(model_high, "models/gold_model_high.pkl")
+    # Train Low/High (Confidence Intervals)
+    low_model, _, _ = predictor.train_model(X, y, quantile=0.05)
+    high_model, _, _ = predictor.train_model(X, y, quantile=0.95)
     
-    # Legacy support (copy med to main path)
-    predictor.save_model(model_med, "models/gold_model.pkl")
-
-    # Evaluation (on Median)
-    rmse, mae, _ = predictor.evaluate_model(model_med, X_test, y_test)
+    predictor.save_model(low_model, "models/gold_model_low.pkl")
+    predictor.save_model(high_model, "models/gold_model_high.pkl")
+    
+    # --- 5. Classification Training (Up/Down) ---
+    print("\n--- Training Direction Classifier ---")
+    # 1 if Return > 0 else 0
+    y_class = (y > 0).astype(int)
+    clf_model, clf_acc = predictor.train_classifier(X, y_class)
+    predictor.save_model(clf_model, "models/gold_classifier.pkl")
+    print(f"Direction Classifier Accuracy: {clf_acc:.2%}")
+    # ---------------------------------------------
+    
+    # --- 6. Evaluation ---
+    rmse, mae, _ = predictor.evaluate_model(med_model, X_test, y_test)
     logger.info(f"Median Model Results -> MAE: {mae:.4f}, RMSE: {rmse:.4f}")
     
     # Save Metrics Metadata
@@ -123,7 +131,7 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
         json.dump(metrics, f, indent=4)
     logger.info(f"Performance metrics saved to {metrics_path}")
     
-    return model_med, mae
+    return med_model, mae
 
 
 def run_prediction(

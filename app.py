@@ -48,8 +48,15 @@ def get_model():
                     ensemble[q] = predictor.load_model(p)
             
             if all(m is not None for m in ensemble.values()):
-                trained_model = ensemble
-                print("Model ensemble loaded successfully.")
+                # Load Classifier
+                clf = predictor.load_model("models/gold_classifier.pkl")
+                if clf:
+                    ensemble['clf'] = clf
+                    trained_model = ensemble
+                    print("Model ensemble + Classifier loaded successfully.")
+                else:
+                    print("Warning: Classifier not found. Continuing with Regressors only.")
+                    trained_model = ensemble
             else:
                 raise ValueError("Some models failed to load.")
                 
@@ -78,7 +85,30 @@ def get_history():
         return jsonify({"error": "No history found"}), 404
 
     df = pd.read_csv(CSV_PATH, index_col='Date', parse_dates=True)
-    recent_df = df.tail(100)
+    recent_df = df.tail(100).copy()
+
+    # --- REALTIME CHART UPDATE ---
+    # Fetch live price to append as the final point
+    live_gold = loader.fetch_live_data('GC=F')
+    if live_gold:
+        # Create a new index for "Now"
+        now_idx = pd.Timestamp.now().normalize()
+        
+        # If the last date in history is NOT today (or if it is, we overwrite/update it?)
+        # For chart continuity, if today exists, we replace it. If not, we append.
+        if recent_df.index[-1].normalize() == now_idx:
+            # Update last row
+            recent_df.iloc[-1, recent_df.columns.get_loc('Gold')] = live_gold['price']
+        else:
+            # Append new row
+            new_row = pd.DataFrame(
+                {'Gold': [live_gold['price']], 'USD_IDR': [recent_df['USD_IDR'].iloc[-1]]}, 
+                index=[now_idx]
+            )
+            # Fill missing columns with ffill/bfill or ignore if only Gold is needed for chart
+            recent_df = pd.concat([recent_df, new_row])
+            
+    # -----------------------------
 
     data = {
         "dates": recent_df.index.strftime('%Y-%m-%d').tolist(),
@@ -145,8 +175,24 @@ def get_prediction():
         
     predicted_usd = current_usd * (1 + predicted_return)
 
+    predicted_usd = current_usd * (1 + predicted_return)
+
+    # Classification (Confidence)
+    conf_direction = "N/A"
+    conf_score = 0.0
+    if isinstance(model_obj, dict) and 'clf' in model_obj:
+        conf_direction, conf_score = predictor.get_classification_confidence(
+            model_obj['clf'], latest_row
+        )
+        conf_score = round(conf_score * 100, 1) # Convert to %
+
     # Signal
-    rec, _ = predictor.make_recommendation(current_usd, predicted_usd)
+    rec, _ = predictor.make_recommendation(
+        current_usd, 
+        predicted_usd,
+        conf_direction=conf_direction,
+        conf_score=conf_score
+    )
 
     # Local Specs
     grams_per_oz = 31.1035
@@ -176,6 +222,8 @@ def get_prediction():
         "recommendation": rec,
         "sentiment_score": round(sentiment, 4),
         "sentiment_breakdown": sentiment_breakdown,
+        "confidence_direction": conf_direction,
+        "confidence_score": conf_score,
         "action_date": (pd.Timestamp.now() + pd.Timedelta(days=1)).strftime(
             '%Y-%m-%d'),
         "top_headlines": headlines

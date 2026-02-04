@@ -58,6 +58,66 @@ def train_model(
     return model, X_test, y_test
 
 
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import accuracy_score
+
+def train_classifier(
+    X: pd.DataFrame, 
+    y: pd.Series
+) -> Tuple[GradientBoostingClassifier, float]:
+    """
+    Trains a Gradient Boosting Classifier to predict Price Direction (Up/Down).
+    
+    Args:
+        X (pd.DataFrame): Feature matrix.
+        y (pd.Series): Target vector (1 for Up, 0 for Down/Flat).
+
+    Returns:
+        Tuple[GradientBoostingClassifier, float]: Trained model and accuracy score.
+    """
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, shuffle=False
+    )
+    
+    clf = GradientBoostingClassifier(
+        n_estimators=300,
+        learning_rate=0.05,
+        max_depth=4,
+        random_state=42
+    )
+    
+    clf.fit(X_train, y_train)
+    
+    # Calculate accuracy
+    preds = clf.predict(X_test)
+    acc = accuracy_score(y_test, preds)
+    
+    return clf, acc
+
+
+def get_classification_confidence(
+    model: GradientBoostingClassifier,
+    X_input: pd.DataFrame
+) -> Tuple[str, float]:
+    """
+    Returns the predicted direction and the confidence (probability).
+    
+    Args:
+        model (GradientBoostingClassifier): Trained classifier.
+        X_input (pd.DataFrame): Single row of features.
+        
+    Returns:
+        Tuple[str, float]: Direction ("UP"/"DOWN") and Confidence (0.0 - 1.0).
+    """
+    # [P(Down), P(Up)]
+    probs = model.predict_proba(X_input)[0] 
+    
+    if probs[1] > 0.5:
+        return "UP", probs[1]
+    else:
+        return "DOWN", probs[0]
+
+
 def evaluate_model(
     model: GradientBoostingRegressor, 
     X_test: pd.DataFrame, 
@@ -111,26 +171,39 @@ def load_model(path: str = "models/gold_model.pkl") -> Optional[Any]:
 
 def make_recommendation(
     current_price: float, 
-    predicted_price: float
+    predicted_price: float,
+    conf_direction: Optional[str] = None,
+    conf_score: Optional[float] = 0.0
 ) -> Tuple[str, float]:
     """
-    Generates a Buy/Sell/Hold signal based on predicted change.
+    Generates a Buy/Sell/Hold signal based on predicted change & confidence.
 
     Args:
         current_price (float): Current asset price.
         predicted_price (float): Predicted asset price.
+        conf_direction (str): "UP" or "DOWN".
+        conf_score (float): Confidence percentage (0-100).
 
     Returns:
         Tuple[str, float]: Recommendation string and percentage change.
     """
     change_pct = (predicted_price - current_price) / current_price
     
+    # strong signals (Price driven)
     if change_pct > HOLD_THRESHOLD:
         return "BUY", change_pct
     elif change_pct < -HOLD_THRESHOLD:
         return "SELL", change_pct
-    else:
-        return "HOLD", change_pct
+    
+    # nuanced signals (Confidence driven for small moves)
+    # If standard logic says HOLD, but we are very sure of direction:
+    if conf_score and conf_score > 60.0:
+        if conf_direction == "UP" and change_pct > 0:
+            return "ACCUMULATE", change_pct
+        elif conf_direction == "DOWN" and change_pct < 0:
+            return "REDUCE", change_pct
+            
+    return "WAIT", change_pct
 
 
 def recursive_forecast(
