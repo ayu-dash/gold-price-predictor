@@ -811,6 +811,11 @@ header h1 {
     color: var(--gold);
 }
 
+.spinning span {
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
 @keyframes spin {
     0% {
         transform: rotate(0deg);
@@ -851,4 +856,74 @@ header h1 {
 #metric_timestamp {
     color: var(--text-muted);
     font-style: italic;
+}
+
+/* --- MOBILE RESPONSIVE OVERRIDES --- */
+@media (max-width: 900px) {
+    .dashboard-container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--glass-border);
+        padding: 12px 16px;
+    }
+
+    .sidebar .logo {
+        margin-bottom: 15px;
+    }
+
+    .sidebar nav {
+        display: flex;
+        overflow-x: auto;
+        gap: 10px;
+        padding-bottom: 5px;
+        scrollbar-width: none;
+    }
+
+    .sidebar nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .nav-item {
+        margin-bottom: 0;
+        white-space: nowrap;
+        padding: 8px 12px;
+    }
+
+    .main-content {
+        padding: 12px;
+    }
+
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+        margin-bottom: 15px;
+    }
+
+    header h1 {
+        font-size: 1.2rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .grid-container {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+    }
+
+    .main-price {
+        font-size: 2rem !important;
+    }
+
+    .signal-value {
+        font-size: 1.8rem !important;
+    }
+
+    .card {
+        padding: 10px !important;
+    }
 }

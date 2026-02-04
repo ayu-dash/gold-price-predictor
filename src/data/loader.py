@@ -160,7 +160,7 @@ def fetch_market_data(period: str = "max") -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def update_local_database(csv_path: str = "data/gold_history.csv") -> pd.DataFrame:
+def update_local_database(csv_path: str = "data/gold_history.csv", force: bool = False) -> pd.DataFrame:
     """
     Updates the local CSV database with new daily data.
     
@@ -168,6 +168,7 @@ def update_local_database(csv_path: str = "data/gold_history.csv") -> pd.DataFra
     
     Args:
         csv_path (str): Path to local CSV file.
+        force (bool): If True, bypass "up-to-date" check and try fetching.
         
     Returns:
         pd.DataFrame: Full updated dataframe.
@@ -184,7 +185,7 @@ def update_local_database(csv_path: str = "data/gold_history.csv") -> pd.DataFra
             
             # Check if up to date (last date is yesterday or today)
             today = pd.Timestamp.now().normalize()
-            if last_date >= (today - pd.Timedelta(days=1)):
+            if not force and last_date >= (today - pd.Timedelta(days=1)):
                 print("      Database is up to date (Last date is yesterday/today).")
                 return full_data
             
@@ -550,10 +551,35 @@ def fetch_live_data(ticker: str = 'GC=F') -> Optional[Dict[str, float]]:
             change_pct = 0.0
             
         return {
-            'price': latest_price,
-            'change_pct': change_pct
+            'price': float(latest_price),
+            'change_pct': float(change_pct)
         }
         
     except Exception as e:
-        print(f"Error fetching live data: {e}")
+        print(f"Error fetching live data for {ticker}: {e}")
         return None
+
+def fetch_market_snapshot() -> Dict[str, Any]:
+    """
+    Fetches a snapshot of major markets for the Bloomberg-style dashboard.
+    """
+    tickers = {
+        'GOLD': 'GC=F',
+        'SILVER': 'SI=F',
+        'OIL': 'CL=F',
+        'DXY': 'DX-Y.NYB',
+        'S&P500': '^GSPC',
+        'NASDAQ': '^IXIC',
+        'VIX': '^VIX',
+        'BITCOIN': 'BTC-USD',
+        'USD/IDR': 'IDR=X',
+        'US10Y': '^TNX'
+    }
+    
+    snapshot = {}
+    for name, symbol in tickers.items():
+        data = fetch_live_data(symbol)
+        if data:
+            snapshot[name] = data
+            
+    return snapshot

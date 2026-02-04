@@ -2,9 +2,163 @@
 
 {% block title %}Gold Prediction Pro | Obsidian Dashboard{% endblock %}
 
-{% block header_title %}Market Intelligence Dashboard{% endblock %}
+{% block header_title %}Market Intelligence Dashboard <span
+    style="font-size: 0.7rem; font-family: var(--font-mono); font-weight: 300; opacity: 0.6; margin-left:10px;">DB_SYNC:
+    <span id="last_db_update">--</span> <button id="force_sync_btn" class="icon-btn" title="Force DB Update"
+        style="color:var(--terminal-gold);"><span class="material-symbols-outlined"
+            style="font-size: 0.9rem; vertical-align: middle;">sync</span></button></span>{% endblock %}
 
 {% block content %}
+<style>
+    /* Bloomberg Terminal Aesthetics */
+    :root {
+        --terminal-bg: #000000;
+        --terminal-text: #ffffff;
+        --terminal-gold: #ffb900;
+        --terminal-green: #00ff00;
+        --terminal-red: #ff0000;
+        --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+    }
+
+    /* Scrolling Ticker Tape */
+    .ticker-wrap {
+        width: 100%;
+        overflow: hidden;
+        height: 35px;
+        background-color: var(--terminal-bg);
+        border-bottom: 1px solid #333;
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+        position: relative;
+    }
+
+    .ticker {
+        display: flex;
+        white-space: nowrap;
+        animation: ticker 60s linear infinite;
+    }
+
+    .ticker-item {
+        padding: 0 30px;
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .ticker-item .change-up {
+        color: var(--terminal-green);
+    }
+
+    .ticker-item .change-down {
+        color: var(--terminal-red);
+    }
+
+    @keyframes ticker {
+        0% {
+            transform: translate3d(0, 0, 0);
+        }
+
+        100% {
+            transform: translate3d(-100%, 0, 0);
+        }
+    }
+
+    /* Terminal Density Adjustments */
+    .grid-container {
+        gap: 15px !important;
+    }
+
+    .card {
+        padding: 12px !important;
+        border-radius: 4px !important;
+        /* Sharper edges */
+    }
+
+    .main-price,
+    .value,
+    .sub-price,
+    .ticker-item {
+        font-family: var(--font-mono) !important;
+    }
+
+    .card-header {
+        font-family: var(--font-mono);
+        color: var(--terminal-gold);
+        font-weight: 700;
+        text-transform: uppercase;
+        border-bottom: 1px solid #333;
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+    }
+
+    /* Monitor Table Styles */
+    .monitor-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 5px;
+    }
+
+    .monitor-table th,
+    .monitor-table td {
+        padding: 6px 4px;
+        text-align: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        font-size: 0.8rem;
+    }
+
+    .monitor-table tr:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .trend-up {
+        color: var(--terminal-green);
+    }
+
+    .trend-down {
+        color: var(--terminal-red);
+    }
+
+    /* Mobile Responsive Overrides */
+    @media (max-width: 768px) {
+        .ticker-item {
+            padding: 0 15px;
+            font-size: 0.75rem;
+        }
+
+        .monitor-table th,
+        .monitor-table td {
+            font-size: 0.7rem;
+            padding: 4px 2px;
+        }
+
+        .simulation-sliders {
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .slider-group {
+            width: 100%;
+        }
+
+        #reset_simulation {
+            width: 100%;
+            margin-top: 10px;
+        }
+    }
+</style>
+
+<div class="ticker-wrap">
+    <div class="ticker" id="ticker_content">
+        <!-- Ticker items will be injected by JS -->
+        <span class="ticker-item">LOADING TERMINAL DATA...</span>
+        <span class="ticker-item">CORE INDEXES: [XAU/USD] [XAG/USD] [CL/USD] [DXY] [SPX] [IXIC] [BTC] [IDR]</span>
+    </div>
+</div>
+
 <div class="grid-container">
     <!-- Hero Card: Current Price -->
     <div class="card hero-card glass">
@@ -120,6 +274,29 @@
         </div>
     </div>
 
+    <!-- Market Monitor (Terminal Style) -->
+    <div class="card terminal-monitor glass grid-span-full">
+        <div class="card-header">Global Market Monitor (Terminal Snapshot)</div>
+        <div class="monitor-table-container" style="overflow-x: auto;">
+            <table class="monitor-table" style="min-width: 500px;">
+                <thead
+                    style="font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; color: #666;">
+                    <tr>
+                        <th style="text-align: left;">Ticker</th>
+                        <th>Last Price</th>
+                        <th>Chg %</th>
+                        <th>Trend (1D)</th>
+                    </tr>
+                </thead>
+                <tbody id="monitor_body" style="font-family: var(--font-mono);">
+                    <tr>
+                        <td colspan="4" class="text-center">Initializing terminal feeds...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- Multi-day Forecast -->
     <div class="card forecast-card glass grid-span-full">
         <div class="card-header">
@@ -163,8 +340,8 @@
                 </div>
             </div>
         </div>
-        <div class="forecast-table-container">
-            <table class="forecast-table">
+        <div class="forecast-table-container" style="overflow-x: auto;">
+            <table class="forecast-table" style="min-width: 700px;">
                 <thead>
                     <tr>
                         <th>Day Index</th>

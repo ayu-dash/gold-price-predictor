@@ -31,6 +31,10 @@ function startRealtimeUpdates() {
     fetchRealtimePrice();
     // Poll every 30 seconds
     setInterval(fetchRealtimePrice, 30000);
+
+    // Terminal Heartbeat (Monitor & Ticker)
+    updateMarketMonitor();
+    setInterval(updateMarketMonitor, 60000); // 1-minute refresh
 }
 
 function fetchRealtimePrice() {
@@ -356,7 +360,11 @@ function updateSignalCard(data) {
         confEl.innerText = '';
     }
 
-    document.getElementById('action_date').innerText = data.action_date;
+    // AI Prediction Data
+    const predDate = document.getElementById('action_date');
+    const lastDbEl = document.getElementById('last_db_update');
+    if (predDate) predDate.innerText = data.action_date;
+    if (lastDbEl) lastDbEl.innerText = data.last_db_date;
 
     // Signal Light Logic
     if (lightEl) {
@@ -478,6 +486,28 @@ function setupEventListeners() {
     // Forecast Button
     const runBtn = document.getElementById('run_forecast');
     if (runBtn) runBtn.addEventListener('click', runForecast);
+
+    // Force DB Sync
+    const syncBtn = document.getElementById('force_sync_btn');
+    if (syncBtn) {
+        syncBtn.onclick = async () => {
+            syncBtn.classList.add('spinning');
+            try {
+                const res = await fetch('/api/force_db_update');
+                const result = await res.json();
+                if (result.status === 'success') {
+                    alert('Database update completed successfully.');
+                    location.reload(); // Reload to refresh all data
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Connection error.');
+            } finally {
+                syncBtn.classList.remove('spinning');
+            }
+        };
+    }
 
     // Reset Simulation
     const resetBtn = document.getElementById('reset_simulation');
@@ -604,4 +634,55 @@ function updateRiskWatchlist(data) {
         `;
         listEl.appendChild(li);
     });
+}
+
+/**
+ * Bloomberg Terminal Data Heartbeat
+ */
+async function updateMarketMonitor() {
+    const monitorBody = document.getElementById('monitor_body');
+    const tickerContent = document.getElementById('ticker_content');
+    if (!monitorBody || !tickerContent) return;
+
+    try {
+        const response = await fetch('/api/market_monitor');
+        const data = await response.json();
+
+        // 1. Update Market Monitor Table (Table View)
+        let monitorHtml = '';
+        let tickerHtml = '';
+
+        Object.entries(data).forEach(([name, info]) => {
+            const isUp = info.change_pct >= 0;
+            const sign = isUp ? '+' : '';
+            const colorClass = isUp ? 'trend-up' : 'trend-down';
+            const icon = isUp ? '▲' : '▼';
+
+            // Table Row
+            monitorHtml += `
+                <tr>
+                    <td style="text-align: left; font-weight: 700;">${name}</td>
+                    <td>${info.price.toLocaleString()}</td>
+                    <td class="${colorClass}">${sign}${info.change_pct.toFixed(2)}%</td>
+                    <td class="${colorClass}">${icon}</td>
+                </tr>
+            `;
+
+            // Ticker Item for Scrolling
+            tickerHtml += `
+                <span class="ticker-item">
+                    ${name} ${info.price.toLocaleString()} 
+                    <span class="${isUp ? 'change-up' : 'change-down'}">${sign}${info.change_pct.toFixed(2)}%</span>
+                </span>
+            `;
+        });
+
+        monitorBody.innerHTML = monitorHtml;
+
+        // Double the ticker content to ensure seamless loop
+        tickerContent.innerHTML = tickerHtml + tickerHtml;
+
+    } catch (err) {
+        console.error('Terminal feed error:', err);
+    }
 }

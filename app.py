@@ -127,6 +127,21 @@ def get_history():
         "idr_rate": recent_df['USD_IDR'].tolist()
     }
     return jsonify(data)
+    
+@app.route("/api/market_monitor")
+def market_monitor():
+    """Returns a snapshot of global market health."""
+    snapshot = loader.fetch_market_snapshot()
+    return jsonify(snapshot)
+
+@app.route("/api/force_db_update")
+def force_db_update():
+    """Manually triggers loader.update_local_database()."""
+    try:
+        loader.update_local_database(force=True) # I'll need to add force param to loader
+        return jsonify({"status": "success", "message": "Database sync triggered"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/api/prediction")
@@ -276,6 +291,7 @@ def get_prediction():
         "sentiment_breakdown": sentiment_breakdown,
         "confidence_direction": conf_direction,
         "confidence_score": conf_score,
+        "last_db_date": market_data.index.max().strftime('%Y-%m-%d'),
         "is_bullish": bool(rsi_val > 60 or (sma_val and current_usd > sma_val)),
         "rsi": round(rsi_val, 2),
         "action_date": (pd.Timestamp.now() + pd.Timedelta(days=1)).strftime(
