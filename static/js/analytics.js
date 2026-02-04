@@ -104,23 +104,30 @@ async function fetchModelMetrics() {
 
         // 1. Display Training Metrics
         if (metricsData && !metricsData.error) {
-            document.getElementById('metric_coverage').innerText = `${metricsData.train_samples + metricsData.test_samples} total`;
-            document.getElementById('metric_timestamp').innerText = metricsData.timestamp;
+            updateMetricRow('metric_coverage', `${metricsData.train_samples + metricsData.test_samples} total`);
+            updateMetricRow('metric_timestamp', metricsData.timestamp);
 
             // Handle new nested structure vs old flat structure
             if (metricsData.models) {
                 const m = metricsData.models;
-                document.getElementById('metric_mae_med').innerText = m.median.mae.toFixed(4);
-                document.getElementById('metric_mae_low').innerText = m.low.mae.toFixed(4);
-                document.getElementById('metric_mae_high').innerText = m.high.mae.toFixed(4);
+                updateMetricRow('metric_mae_med', m.median.mae.toFixed(4));
+                updateMetricRow('metric_mae_low', m.low.mae.toFixed(4));
+                updateMetricRow('metric_mae_high', m.high.mae.toFixed(4));
+
                 if (m.neural_network) {
-                    document.getElementById('metric_mae_nn').innerText = m.neural_network.mae.toFixed(4);
+                    updateMetricRow('metric_mae_nn', m.neural_network.mae.toFixed(4));
+                } else {
+                    updateMetricRow('metric_mae_nn', 0); // Hide if missing
                 }
-                document.getElementById('metric_clf_acc').innerText = `${(m.classifier.accuracy * 100).toFixed(1)}%`;
+
+                updateMetricRow('metric_clf_acc', `${(m.classifier.accuracy * 100).toFixed(1)}%`);
 
                 if (m.classifier.precision !== undefined) {
-                    document.getElementById('metric_clf_prec').innerText = `${(m.classifier.precision * 100).toFixed(1)}%`;
-                    document.getElementById('metric_clf_rec').innerText = `${(m.classifier.recall * 100).toFixed(1)}%`;
+                    updateMetricRow('metric_clf_prec', `${(m.classifier.precision * 100).toFixed(1)}%`);
+                    updateMetricRow('metric_clf_rec', `${(m.classifier.recall * 100).toFixed(1)}%`);
+                } else {
+                    updateMetricRow('metric_clf_prec', 0);
+                    updateMetricRow('metric_clf_rec', 0);
                 }
 
                 // Big Accuracy Score (Use Median MAE)
@@ -128,7 +135,7 @@ async function fetchModelMetrics() {
                 document.getElementById('metric_accuracy').innerText = `±${errorMargin.toFixed(2)}%`;
             } else {
                 // Fallback for old flat structure
-                document.getElementById('metric_mae_med').innerText = metricsData.mae.toFixed(4);
+                updateMetricRow('metric_mae_med', metricsData.mae.toFixed(4));
                 const errorMargin = (metricsData.mae * 100);
                 document.getElementById('metric_accuracy').innerText = `±${errorMargin.toFixed(2)}%`;
             }
@@ -260,4 +267,29 @@ function showLoader(show) {
     if (!overlay) return;
     if (show) overlay.classList.add('active');
     else overlay.classList.remove('active');
+}
+
+/**
+ * Updates a metric value and hides the row if the value is zero or missing.
+ */
+function updateMetricRow(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    const row = el.closest('.metric-item');
+
+    // Check if value is "empty" or effectively zero
+    const isEmpty = !value ||
+        value === '--' ||
+        value === '0' ||
+        value === '0.0%' ||
+        value === '0.0000' ||
+        value === '0%';
+
+    if (isEmpty && row) {
+        row.style.display = 'none';
+    } else {
+        el.innerText = value;
+        if (row) row.style.display = 'flex';
+    }
 }
