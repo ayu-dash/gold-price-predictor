@@ -1,7 +1,9 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 flask
 flask-cors
+gunicorn
 pandas
-numpy
+numpy<2.0.0
 scikit-learn
 yfinance
 ta
