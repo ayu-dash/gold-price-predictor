@@ -18,7 +18,13 @@
 
     <!-- Accuracy Scorecard Card -->
     <div class="card glass">
-        <div class="card-header">AI Model Accuracy Scorecard</div>
+        <div class="card-header">
+            AI Model Accuracy Scorecard
+            <button id="retrain_btn" class="tf-btn"
+                style="font-size: 0.75rem; display: flex; align-items: center; gap: 5px;">
+                <span class="material-symbols-outlined" style="font-size: 1rem;">sync</span> Update Model
+            </button>
+        </div>
         <div class="scorecard-container">
             <div class="score-main" style="text-align: center; margin: 15px 0;">
                 <div class="score-value" id="metric_accuracy"

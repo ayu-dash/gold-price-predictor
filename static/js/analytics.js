@@ -3,6 +3,31 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchYearlyStats();
     fetchModelMetrics();
 
+    // 2. Button Listeners
+    const retrainBtn = document.getElementById('retrain_btn');
+    if (retrainBtn) {
+        retrainBtn.addEventListener('click', async () => {
+            if (!confirm("Start model training? This process runs in the background and takes about 2-3 minutes.")) return;
+
+            retrainBtn.disabled = true;
+            retrainBtn.innerHTML = '<span class="spinner" style="width:12px; height:12px; border-width:2px; display:inline-block; margin-right:5px;"></span> Training...';
+
+            try {
+                const res = await fetch('/api/retrain', { method: 'POST' });
+                const data = await res.json();
+                alert(data.message);
+            } catch (err) {
+                alert("Failed to start training: " + err);
+            } finally {
+                // Re-enable after 5 seconds just to prevent spam, though real training takes longer
+                setTimeout(() => {
+                    retrainBtn.disabled = false;
+                    retrainBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 1rem;">sync</span> Update Model';
+                }, 5000);
+            }
+        });
+    }
+
     // Set current date
     const now = new Date();
     const dateEl = document.getElementById('current_date');
@@ -11,43 +36,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function fetchModelMetrics() {
     try {
-        const response = await fetch('/api/model_metrics');
-        const data = await response.json();
+        // Fetch Model Metrics (Training Data)
+        const metricsRes = await fetch('/api/model_metrics');
+        const metricsData = await metricsRes.json();
 
-        if (data.error) {
-            console.warn('Model metrics not found');
-            return;
+        // Fetch Real-World Signal Performance (Production Data)
+        const signalsRes = await fetch('/api/signals_history');
+        const signalsData = await signalsRes.json();
+
+        // 1. Display Training Metrics
+        if (metricsData && !metricsData.error) {
+            document.getElementById('metric_mae').innerText = metricsData.mae.toFixed(4);
+            document.getElementById('metric_coverage').innerText = `${metricsData.train_samples + metricsData.test_samples} total`;
+            document.getElementById('metric_timestamp').innerText = metricsData.timestamp;
+
+            // Show MAE as "AVG Training Error"
+            const errorMargin = (metricsData.mae * 100);
+            document.getElementById('metric_accuracy').innerText = `±${errorMargin.toFixed(2)}%`;
+            document.querySelector('.score-label').innerText = "Model Training Error (Margin)";
         }
 
-        // Display Data
-        document.getElementById('metric_mae').innerText = data.mae.toFixed(4);
-        document.getElementById('metric_coverage').innerText = `${data.train_samples + data.test_samples} total`;
-        document.getElementById('metric_timestamp').innerText = data.timestamp;
+        // 2. Calculate Reliability based on REAL WIN RATE
+        // "Reliability" should reflect accurate signals, not just training error.
+        let correctCount = 0;
+        let completedCount = 0;
 
-        // "Accuracy" can be ambiguous. We'll show "AVG ERROR MARGIN".
-        // MAE is e.g. 0.008 (0.8%).
-        const errorMargin = (data.mae * 100);
-        document.getElementById('metric_accuracy').innerText = `±${errorMargin.toFixed(2)}%`;
-        document.querySelector('.score-label').innerText = "Avg. Prediction Error";
+        signalsData.forEach(sig => {
+            const out = sig.Outcome;
+            if (out === 'Correct') {
+                correctCount++;
+                completedCount++;
+            } else if (out === 'Wrong') {
+                completedCount++;
+            }
+        });
 
-        // Reliability Logic (Lower error is better)
+        const winRate = completedCount > 0 ? (correctCount / completedCount) * 100 : 0;
+
         const reliabilityEl = document.getElementById('metric_reliability');
         let badgeText = 'Low';
         let badgeColor = 'text-red';
 
-        if (errorMargin < 1.0) {
+        // Stricter Real-World Standards
+        if (winRate >= 65) {
             badgeText = 'High';
             badgeColor = 'text-green';
-        } else if (errorMargin < 2.0) {
+        } else if (winRate >= 50) {
             badgeText = 'Medium';
             badgeColor = 'text-gold';
         }
 
-        reliabilityEl.innerText = badgeText;
-        reliabilityEl.className = badgeColor;
+        // Override text if no data
+        if (completedCount === 0 && metricsData) {
+            // Fallback to training reliability if no real signals yet
+            reliabilityEl.innerText = "No Signals Yet";
+            reliabilityEl.className = "text-muted";
+        } else {
+            reliabilityEl.innerText = `${badgeText} (${Math.round(winRate)}% WR)`;
+            reliabilityEl.className = badgeColor;
+        }
 
     } catch (error) {
-        console.error('Error fetching model metrics:', error);
+        console.error('Error fetching metrics:', error);
     }
 }
 

@@ -561,12 +561,12 @@ import subprocess
 import time
 import sys
 
-UPDATE_INTERVAL = 43200  # 12 Hours
+UPDATE_INTERVAL = 3600  # 1 Hour (Continuous Learning Mode)
 
 def run_periodic_update():
     """Reads main.py periodically to update model and data."""
     while True:
-        print(f"\n[Scheduler] Usage monitoring... Next update in {UPDATE_INTERVAL/3600} hours.")
+        print(f"\n[Scheduler] Usage monitoring... Next update in {UPDATE_INTERVAL/60} minutes.")
         time.sleep(UPDATE_INTERVAL)
         
         print("\n[Scheduler] Starting periodic model update (main.py)...")
@@ -599,6 +599,30 @@ def start_scheduler():
     thread = threading.Thread(target=run_periodic_update, daemon=True)
     thread.start()
     print("[Scheduler] Background service started.")
+
+@app.route('/api/retrain', methods=['POST'])
+def retrain_model():
+    """Manually triggers model retraining."""
+    def run_training():
+        print("[Manual] Starting manual model training...")
+        try:
+             result = subprocess.run(
+                [sys.executable, "main.py", "--days", "1"],
+                capture_output=True,
+                text=True
+            )
+             if result.returncode == 0:
+                 print("\n[Manual] Training Success!")
+                 print(result.stdout)
+             else:
+                 print("\n[Manual] Training Failed!")
+                 print(result.stderr)
+        except Exception as e:
+            print(f"[Manual] Error: {e}")
+
+    # Run in background to not block response
+    threading.Thread(target=run_training).start()
+    return jsonify({"status": "Training started", "message": "Model update in progress. Check logs or wait 2-3 mins."})
 
 # Helper function for history data
 def fetch_and_prepare_data():
