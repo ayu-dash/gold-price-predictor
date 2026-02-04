@@ -176,9 +176,17 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     }
     
     metrics_path = "models/metrics.json"
-    with open(metrics_path, 'w') as f:
-        json.dump(metrics, f, indent=4)
-    logger.info(f"Performance metrics saved to {metrics_path}")
+    temp_metrics = metrics_path + ".tmp"
+    try:
+        with open(temp_metrics, 'w') as f:
+            json.dump(metrics, f, indent=4)
+        import os
+        os.replace(temp_metrics, metrics_path)
+        logger.info(f"Performance metrics saved atomically to {metrics_path}")
+    except Exception as e:
+        if os.path.exists(temp_metrics):
+            os.remove(temp_metrics)
+        logger.error(f"Failed to save metrics: {e}")
     
     return med_model, mae_med
 

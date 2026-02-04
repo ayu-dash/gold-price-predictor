@@ -196,17 +196,34 @@ def evaluate_model(
     return rmse, mae, predictions
 
 
+import tempfile
+
 def save_model(model: Any, path: str = "models/gold_model.pkl") -> None:
     """
-    Saves the trained model to disk.
+    Saves the trained model to disk using an atomic swap operation.
+    This prevents corruption if another process reads the file while writing.
 
     Args:
         model (Any): The model object to save.
         path (str): Destination path.
     """
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'wb') as f:
-        pickle.dump(model, f)
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    
+    # Use a temporary file in the same directory for an atomic atomic move later
+    fd, temp_path = tempfile.mkstemp(dir=directory, prefix="temp_", suffix=".pkl")
+    
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            pickle.dump(model, f)
+        
+        # Atomic swap
+        os.replace(temp_path, path)
+    except Exception as e:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise e
 
 
 def load_model(path: str = "models/gold_model.pkl") -> Optional[Any]:

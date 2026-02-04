@@ -21,11 +21,62 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 5. Start Dashboard Refresh Loop (Every 60s) - SILENT
     setInterval(() => updateDashboardData(true), 60000);
+
+    // 6. Signal Countdown
+    startSignalCountdown();
 });
 
 // ----------------------------------------
 // Realtime Price Updates (High Frequency)
 // ----------------------------------------
+let countdownSeconds = 0;
+
+function startSignalCountdown() {
+    // Initial fetch to sync with server
+    fetch('/api/next_update')
+        .then(res => res.json())
+        .then(data => {
+            countdownSeconds = data.seconds_remaining;
+            updateCountdownUI();
+        })
+        .catch(() => { countdownSeconds = 3600; });
+
+    // Tick every second
+    setInterval(() => {
+        if (countdownSeconds > 0) {
+            countdownSeconds--;
+            updateCountdownUI();
+        } else {
+            // Re-sync when timer hits zero
+            fetch('/api/next_update')
+                .then(res => res.json())
+                .then(data => {
+                    countdownSeconds = data.seconds_remaining;
+                });
+        }
+    }, 1000);
+}
+
+function updateCountdownUI() {
+    const el = document.getElementById('signal_countdown');
+    if (!el) return;
+
+    const m = Math.floor(countdownSeconds / 60);
+    const s = countdownSeconds % 60;
+
+    // Display as MM:SS
+    el.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+
+    // Dim if very close to refresh
+    if (countdownSeconds < 10) {
+        el.style.color = 'var(--accent-gold)';
+        el.style.opacity = '1';
+    } else {
+        el.style.color = '';
+        el.style.opacity = '0.6';
+    }
+}
+
 function startRealtimeUpdates() {
     // Initial fetch
     fetchRealtimePrice();

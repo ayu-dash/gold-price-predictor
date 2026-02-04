@@ -224,13 +224,24 @@ header h1 {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--glass-border);
-    border-radius: 4px;
-    /* Shorter radius */
-    padding: 12px;
+    border-radius: var(--border-radius);
+    padding: 24px;
     /* Slimmer padding */
     box-shadow: var(--card-shadow);
     transition: border-color 0.2s;
     position: relative;
+}
+
+.countdown-timer {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
 }
 
 .card:hover {

@@ -33,7 +33,10 @@
     <div class="card signal-card glass">
         <div class="card-header">
             AI Trade Insight (Forecast)
-            <div id="signal_light" class="status-light"></div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="signal_countdown" class="countdown-timer" title="Next AI Intelligence Refresh">00:00</span>
+                <div id="signal_light" class="status-light"></div>
+            </div>
         </div>
         <div id="signal_value" class="signal-value text-gold">--</div>
         <div id="target_price" class="sub-price" style="margin-top: 5px; font-weight: 600;">

@@ -68,8 +68,14 @@ def fetch_antam_price(force_refresh: bool = False, current_spot_price: float = N
             price = int(price_str)
             
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-            with open(cache_path, 'wb') as f:
-                pickle.dump({'timestamp': time.time(), 'price': price}, f)
+            temp_cache = cache_path + ".tmp"
+            try:
+                with open(temp_cache, 'wb') as f:
+                    pickle.dump({'timestamp': time.time(), 'price': price}, f)
+                os.replace(temp_cache, cache_path)
+            except Exception:
+                if os.path.exists(temp_cache):
+                    os.remove(temp_cache)
             
             return price
             
@@ -437,9 +443,14 @@ def fetch_news_sentiment(
     if unique_articles:
         print(f"      Analyzing {len(unique_articles)} news articles...")
         try:
-            from transformers import pipeline
-            # Suppress logs from transformers?
-            classifier = pipeline('sentiment-analysis', model='ProsusAI/finbert')
+            print("      Checking for Advanced NLP...")
+            # Use FinBERT only if explicitly allowed or if RAM is presumed sufficient
+            if os.environ.get('USE_ADVANCED_NLP', 'true').lower() == 'true':
+                from transformers import pipeline
+                # Suppress logs from transformers?
+                classifier = pipeline('sentiment-analysis', model='ProsusAI/finbert')
+            else:
+                raise ImportError("Advanced NLP disabled by user.")
 
             scores = []
             for article in unique_articles:
@@ -495,13 +506,19 @@ def fetch_news_sentiment(
     # 3. Save Cache
     try:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-        with open(cache_path, 'wb') as f:
-            pickle.dump({
-                'timestamp': time.time(),
-                'avg_sentiment': avg_sentiment,
-                'headlines': headlines,
-                'sentiment_counts': sentiment_counts
-            }, f)
+        temp_cache = cache_path + ".tmp"
+        try:
+            with open(temp_cache, 'wb') as f:
+                pickle.dump({
+                    'timestamp': time.time(),
+                    'avg_sentiment': avg_sentiment,
+                    'headlines': headlines,
+                    'sentiment_counts': sentiment_counts
+                }, f)
+            os.replace(temp_cache, cache_path)
+        except Exception:
+            if os.path.exists(temp_cache):
+                os.remove(temp_cache)
     except Exception as e:
         print(f"      Cache save failed: {e}")
 

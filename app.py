@@ -30,16 +30,14 @@ get_model_lock = threading.Lock()
 import sys
 import subprocess
 
-def get_model():
-    """Lazy loads or returns the global trained model ensemble. Auto-retrains on failure."""
+def get_model(retry=True):
+    """Loads or returns the global trained model ensemble. Safety against infinite loops."""
     global trained_model
     
-    # Quick check without lock
     if trained_model is not None:
         return trained_model
 
     with get_model_lock:
-        # Double-check inside lock
         if trained_model is not None:
             return trained_model
             
@@ -53,32 +51,30 @@ def get_model():
             ensemble = {}
             for q, p in paths.items():
                 if not os.path.exists(p):
-                    # Fallback to legacy path if specific quantile not found
                     ensemble[q] = predictor.load_model("models/gold_model.pkl")
                 else:
                     ensemble[q] = predictor.load_model(p)
             
             if all(m is not None for m in ensemble.values()):
-                # Load Classifier
                 clf = predictor.load_model("models/gold_classifier.pkl")
                 if clf:
                     ensemble['clf'] = clf
-                    trained_model = ensemble
-                    print("Model ensemble + Classifier loaded successfully.")
-                else:
-                    print("Warning: Classifier not found. Continuing with Regressors only.")
-                    trained_model = ensemble
+                trained_model = ensemble
+                print("Model ensemble loaded successfully.")
             else:
-                raise ValueError("Some models failed to load.")
+                raise ValueError("Could not load required models from disk.")
                 
         except Exception as e:
-            print(f"Error loading ensemble ({e}). Retraining...")
-            try:
-                subprocess.run([sys.executable, "main.py", "--days", "1"], check=True)
-                # Retry loading
-                return get_model() 
-            except Exception as e2:
-                print(f"Critical Error: Failed to retrain model: {e2}")
+            print(f"Model load error: {e}")
+            if retry:
+                print("Attempting one-time emergency retrain...")
+                try:
+                    # Added timeout to prevent hanging the whole server
+                    subprocess.run([sys.executable, "main.py", "--days", "1"], check=True, timeout=300)
+                    # Non-recursive retry
+                    return get_model(retry=False) 
+                except Exception as e2:
+                    print(f"Critical: Emergency retrain failed: {e2}")
     
     return trained_model
 
@@ -622,13 +618,17 @@ import subprocess
 import time
 import sys
 
-UPDATE_INTERVAL = 3600  # 1 Hour (Continuous Learning Mode)
+UPDATE_INTERVAL = 3600  # 1 Hour
+NEXT_UPDATE_TIME = time.time() + UPDATE_INTERVAL
 
 def run_periodic_update():
     """Reads main.py periodically to update model and data."""
+    global NEXT_UPDATE_TIME
     while True:
-        print(f"\n[Scheduler] Usage monitoring... Next update in {UPDATE_INTERVAL/60} minutes.")
+        # Update first, THEN sleep to ensure we have a cycle if missed
+        # But logically we want to wait the interval
         time.sleep(UPDATE_INTERVAL)
+        NEXT_UPDATE_TIME = time.time() + UPDATE_INTERVAL
         
         print("\n[Scheduler] Starting periodic model update (main.py)...")
         try:
@@ -637,7 +637,8 @@ def run_periodic_update():
             result = subprocess.run(
                 [sys.executable, "main.py", "--days", "1"],
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=600 # 10 minute timeout
             )
             
             if result.returncode == 0:
@@ -672,6 +673,15 @@ TRAINING_STATE = {
 def get_training_status():
     return jsonify(TRAINING_STATE)
 
+@app.route('/api/next_update')
+def get_next_update():
+    """Returns seconds remaining until the next scheduled AI refresh."""
+    remaining = max(0, int(NEXT_UPDATE_TIME - time.time()))
+    return jsonify({
+        "seconds_remaining": remaining,
+        "next_update_timestamp": int(NEXT_UPDATE_TIME)
+    })
+
 @app.route('/api/retrain', methods=['POST'])
 def retrain_model():
     """Manually triggers model retraining."""
@@ -687,7 +697,8 @@ def retrain_model():
              result = subprocess.run(
                 [sys.executable, "main.py", "--days", "1"],
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=600 # 10 minute timeout
             )
              if result.returncode == 0:
                  print("\n[Manual] Training Success!")
