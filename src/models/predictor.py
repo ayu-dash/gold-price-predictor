@@ -173,32 +173,60 @@ def make_recommendation(
     current_price: float, 
     predicted_price: float,
     conf_direction: Optional[str] = None,
-    conf_score: Optional[float] = 0.0
+    conf_score: Optional[float] = 0.0,
+    rsi: Optional[float] = 50.0,
+    sma: Optional[float] = None
 ) -> Tuple[str, float]:
     """
-    Generates a Buy/Sell/Hold signal based on predicted change & confidence.
+    Generates a Buy/Sell/Hold signal based on predicted change & confidence,
+    with momentum-sensing filters to avoid "Permabear" bias.
     
     Logic:
-    - Change > 0.5% -> BUY / SELL
-    - High Confidence (>65%) + Same Side Change -> ACCUMULATE / REDUCE
-    - Otherwise -> HOLD
+    - Stability Threshold: 0.25% (ignore noise)
+    - Bear Protection: In bullish trends (RSI > 60 or Price > SMA), 
+      only SELL if predicted drop > 0.5%.
+    - Confidence Calibration: Penalize contrarian signals.
     """
     change_pct = (predicted_price - current_price) / current_price
     
-    # strong signals (Price driven)
-    if change_pct > HOLD_THRESHOLD:
+    # 1. Trend Sensing
+    is_bullish = False
+    if rsi > 60:
+        is_bullish = True
+    if sma and current_price > sma:
+        is_bullish = True
+        
+    STABILITY_THRESHOLD = 0.0025 # 0.25%
+    BEAR_PROTECTION_THRESHOLD = 0.005 # 0.5%
+    
+    # 2. Bullish Market Protection (Fixes Permabear Bias)
+    if is_bullish and change_pct < 0:
+        # Market is bullish, but AI predicts a dip
+        if abs(change_pct) < BEAR_PROTECTION_THRESHOLD:
+            # Drop is too small to justify a SELL/REDUCE in a strong uptrend
+            return "HOLD", change_pct
+            
+    # 3. Strong Price-Driven Signals
+    if change_pct > STABILITY_THRESHOLD:
         return "BUY", change_pct
-    elif change_pct < -HOLD_THRESHOLD:
+    elif change_pct < -STABILITY_THRESHOLD:
         return "SELL", change_pct
     
-    # nuanced signals (Confidence driven for small moves)
-    # If the predicted change is tiny, but the classifier is very sure of direction:
+    # 4. Nuanced Confidence-Driven Signals
     if conf_score and conf_score > 65.0:
-        if conf_direction == "UP" and change_pct > 0.001:
-            return "ACCUMULATE", change_pct
-        elif conf_direction == "DOWN" and change_pct < -0.001:
-            return "REDUCE", change_pct
+        # Calibration: Penalize confidence if signal goes against the trend
+        effective_conf = conf_score
+        if is_bullish and conf_direction == "DOWN":
+            effective_conf -= 10.0 # Caution: Contrarian Bearish
+        elif not is_bullish and conf_direction == "UP":
+            effective_conf -= 10.0 # Caution: Contrarian Bullish
             
+        if effective_conf > 65.0:
+            if conf_direction == "UP" and change_pct > 0.001:
+                return "ACCUMULATE", change_pct
+            elif conf_direction == "DOWN" and change_pct < -0.001:
+                return "REDUCE", change_pct
+                
     return "HOLD", change_pct
 
 

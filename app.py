@@ -187,11 +187,16 @@ def get_prediction():
         conf_score = round(conf_score * 100, 1) # Convert to %
 
     # Signal
+    rsi_val = latest_row['RSI'].iloc[0] if 'RSI' in latest_row.columns else 50.0
+    sma_val = latest_row['SMA_14'].iloc[0] if 'SMA_14' in latest_row.columns else None
+    
     rec, _ = predictor.make_recommendation(
         current_usd, 
         predicted_usd,
         conf_direction=conf_direction,
-        conf_score=conf_score
+        conf_score=conf_score,
+        rsi=rsi_val,
+        sma=sma_val
     )
 
     # Log the signal persistently
@@ -234,10 +239,71 @@ def get_prediction():
         "sentiment_breakdown": sentiment_breakdown,
         "confidence_direction": conf_direction,
         "confidence_score": conf_score,
+        "is_bullish": bool(rsi_val > 60 or (sma_val and current_usd > sma_val)),
+        "rsi": round(rsi_val, 2),
         "action_date": (pd.Timestamp.now() + pd.Timedelta(days=1)).strftime(
             '%Y-%m-%d'),
-        "top_headlines": headlines
+        "top_headlines": headlines,
+        "dynamic_risks": [] # Initialized below
     }
+
+    # Dynamic Risk Engine
+    dynamic_risks = []
+    # 1. Trend/RSI Risk
+    rsi_val = latest_row['RSI'].iloc[0] if 'RSI' in latest_row.columns else 50
+    if rsi_val > 70:
+        dynamic_risks.append({
+            "title": "Profit Taking",
+            "desc": "High overbought levels detected (RSI > 70). Risk of short-term correction."
+        })
+    elif rsi_val < 30:
+        dynamic_risks.append({
+            "title": "Oversold Bounce",
+            "desc": "Market is extremely oversold. Watch for sharp relief rallies."
+        })
+    else:
+        dynamic_risks.append({
+            "title": "Trend Consolidation",
+            "desc": "Neutral RSI range. Market is searching for clear direction."
+        })
+
+    # 2. Volatility/Momentum Risk
+    abs_daily_change = abs(daily_change_pct)
+    if abs_daily_change > 2.0:
+        dynamic_risks.append({
+            "title": "High Volatility",
+            "desc": "Significant price movement detected. Increased risk of swing reversals."
+        })
+    elif predicted_usd > current_usd * 1.03:
+        dynamic_risks.append({
+            "title": "Upside Breakout",
+            "desc": "Strong AI bullish bias. Watch for volume confirmation at resistance."
+        })
+    else:
+        dynamic_risks.append({
+            "title": "The Fed Policy",
+            "desc": "Ongoing interest rate expectations remain a primary gold price anchor."
+        })
+
+    # 3. Macro/External Risk
+    dxy_val = latest_row['DXY'].iloc[0] if 'DXY' in latest_row.columns else 100
+    if dxy_val > 105:
+        dynamic_risks.append({
+            "title": "USD Strength",
+            "desc": "Strong Dollar (DXY > 105) acting as a heavy resistance for Gold."
+        })
+    elif latest_row['Sentiment'].iloc[0] < -0.1 if 'Sentiment' in latest_row.columns else False:
+        dynamic_risks.append({
+            "title": "Negative Sentiment",
+            "desc": "Prevailing news bias is bearish. Caution on weak support levels."
+        })
+    else:
+        dynamic_risks.append({
+            "title": "Geopolitics",
+            "desc": "Safe-haven demand remains elevated amid global trade uncertainties."
+        })
+    
+    result["dynamic_risks"] = dynamic_risks
 
     return jsonify(result)
 
@@ -401,10 +467,10 @@ def get_signals_history():
                 outcome = "Correct"
             else:
                 outcome = "Wrong"
-        elif target_date > now_str:
+        elif target_date >= now_str:
             outcome = "Pending"
         else:
-            outcome = "Expired" # Date passed but no history found (e.g. weekend)
+            outcome = "Expired" # Past date but no history found (e.g. weekend)
             
         outcomes.append(outcome)
         

@@ -18,17 +18,17 @@
 
     <div class="card glass">
         <div class="card-header">
-            Market Sentiment Bias
-            <span class="material-symbols-outlined" style="color: var(--gold);">bullseye</span>
+            Signal Accuracy (Win Rate)
+            <span class="material-symbols-outlined" style="color: var(--gold);">check_circle</span>
         </div>
-        <div class="main-price" id="win_rate" style="margin: 15px 0;">--</div>
-        <div class="sub-price">Weighted by >0.1% volatility</div>
+        <div class="main-price" id="win_rate" style="margin: 15px 0;">--%</div>
+        <div class="sub-price">Correct vs Total Completed</div>
     </div>
 
     <div class="card glass">
         <div class="card-header">
-            Signal Weight Distribution
-            <span class="material-symbols-outlined" style="color: var(--gold);">pie_chart</span>
+            Outcome Distribution
+            <span class="material-symbols-outlined" style="color: var(--gold);">donut_large</span>
         </div>
         <div style="height: 100px; display: flex; align-items: center; justify-content: center; margin-top: 10px;">
             <canvas id="signalDistChart"></canvas>
@@ -44,12 +44,12 @@
             <table class="forecast-table" id="signalTable">
                 <thead>
                     <tr>
-                        <th>Observation Date</th>
+                        <th>Target Date</th>
                         <th>Recommended Action</th>
                         <th>Outcome</th>
                         <th>Confidence (%)</th>
-                        <th>Observation Price (USD/oz)</th>
-                        <th>Target Price (USD/oz)</th>
+                        <th>Signal Price (USD)</th>
+                        <th>Forecast Price (USD)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -75,28 +75,45 @@
             const totalEl = document.getElementById('total_signals');
             if (totalEl) totalEl.innerText = total;
 
-            // Signal Distribution Counts
-            let counts = { 'BUY': 0, 'SELL': 0, 'ACCUMULATE': 0, 'REDUCE': 0, 'HOLD': 0, 'WAIT': 0 };
+            // Calculate Outcomes
+            let outcomes = { 'Correct': 0, 'Wrong': 0, 'Pending': 0, 'Expired': 0 };
             data.forEach(r => {
-                const s = r.Signal.toUpperCase();
-                if (counts[s] !== undefined) counts[s]++;
+                const o = r.Outcome || 'Pending';
+                if (outcomes[o] !== undefined) outcomes[o]++;
+                else outcomes['Pending']++; // Fallback
             });
 
-            // Render Chart
+            // Calculate Win Rate
+            const completed = outcomes['Correct'] + outcomes['Wrong'];
+            let winRate = 0;
+            if (completed > 0) {
+                winRate = (outcomes['Correct'] / completed) * 100;
+            }
+
+            const winRateEl = document.getElementById('win_rate');
+            if (winRateEl) {
+                winRateEl.innerText = `${Math.round(winRate)}%`;
+                // Color code
+                if (winRate >= 60) winRateEl.style.color = 'var(--fluorescent-green)';
+                else if (winRate >= 50) winRateEl.style.color = '#fff';
+                else winRateEl.style.color = 'var(--fluorescent-red)';
+            }
+
+            // Render Chart (Outcome Distribution)
             const chartCanvas = document.getElementById('signalDistChart');
             if (chartCanvas) {
                 const ctx = chartCanvas.getContext('2d');
                 new Chart(ctx, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Bullish', 'Bearish', 'Neutral'],
+                        labels: ['Correct', 'Wrong', 'Pending'],
                         datasets: [{
                             data: [
-                                counts['BUY'] + counts['ACCUMULATE'],
-                                counts['SELL'] + counts['REDUCE'],
-                                counts['HOLD'] + counts['WAIT']
+                                outcomes['Correct'],
+                                outcomes['Wrong'],
+                                outcomes['Pending'] + outcomes['Expired']
                             ],
-                            backgroundColor: ['#4caf50', '#f44336', '#9e9e9e'],
+                            backgroundColor: ['#00ff9d', '#ff3b3b', '#757575'],
                             borderWidth: 0
                         }]
                     },
@@ -109,22 +126,12 @@
                 });
             }
 
-            // Calculate Sentiment Bias
-            const bullish = counts['BUY'] + counts['ACCUMULATE'];
-            const bearish = counts['SELL'] + counts['REDUCE'];
-            let biasText = "Neutral";
-            if (bullish > bearish) biasText = "Bullish";
-            if (bearish > bullish) biasText = "Bearish";
-
-            const winRateEl = document.getElementById('win_rate');
-            if (winRateEl) winRateEl.innerText = biasText;
-
             // Render Table
             const tbody = document.querySelector('#signalTable tbody');
             if (tbody) {
                 tbody.innerHTML = '';
                 if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No signal data available for this period.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No signal data available for this period.</td></tr>';
                     return;
                 }
 
@@ -144,13 +151,16 @@
                     if (outcomeText === 'Wrong') outcomeBadge = 'risk-high';
                     if (outcomeText === 'Expired') outcomeBadge = 'risk-med';
 
+                    // Formatting Helper
+                    const fmt = (num) => num ? `$${num.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : '-';
+
                     tr.innerHTML = `
                         <td>${row.Date}</td>
                         <td><span class="risk-indicator ${badgeClass}">${row.Signal}</span></td>
                         <td><span class="risk-indicator ${outcomeBadge}">${outcomeText}</span></td>
                         <td>${row.Confidence}</td>
-                        <td>$${row.Price_USD.toLocaleString()}</td>
-                        <td>$${row.Predicted_USD.toLocaleString()}</td>
+                        <td>${fmt(row.Price_USD)}</td>
+                        <td>${fmt(row.Predicted_USD)}</td>
                     `;
                     tbody.appendChild(tr);
                 });

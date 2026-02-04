@@ -102,16 +102,28 @@ def backfill(days=30):
             )
             conf_score = round(conf_score * 100, 1)
 
+        # The predictive target date is tomorrow
+        target_date_obj = current_date + timedelta(days=1)
+        target_date_str = target_date_obj.strftime('%Y-%m-%d')
+        
+        # Get Technicals for the recommendation logic
+        rsi_val = past_df['RSI'].iloc[-1] if 'RSI' in past_df.columns else 50.0
+        sma_val = past_df['SMA_14'].iloc[-1] if 'SMA_14' in past_df.columns else None
+
         rec, _ = predictor.make_recommendation(
-            current_usd, predicted_usd, conf_direction=conf_dir, conf_score=conf_score
+            current_usd, 
+            predicted_usd, 
+            conf_direction=conf_dir, 
+            conf_score=conf_score,
+            rsi=rsi_val,
+            sma=sma_val
         )
         
-        date_str = current_date.strftime('%Y-%m-%d')
-        print(f"[{date_str}] Price: {current_usd:.2f} -> Sig: {rec} ({conf_dir} {conf_score}%)")
+        print(f"[{target_date_str}] Price: {current_usd:.2f} -> Sig: {rec} (Observed: {current_date.strftime('%Y-%m-%d')})")
         
         # Log it (Overwriting if exists because we want clean history)
         signal_logger.log_daily_signal(
-            date=date_str,
+            date=target_date_str,
             price_usd=current_usd,
             predicted_usd=predicted_usd,
             signal=rec,

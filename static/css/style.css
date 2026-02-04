@@ -42,7 +42,7 @@ body {
     /* Slimmer sidebar */
     background-color: var(--bg-sidebar);
     border-right: 1px solid var(--glass-border);
-    padding: 24px 16px;
+    padding: 16px 14px;
     display: flex;
     flex-direction: column;
 }
@@ -51,7 +51,7 @@ body {
     font-weight: 700;
     font-size: 1.1rem;
     letter-spacing: 1px;
-    margin-bottom: 40px;
+    margin-bottom: 30px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -93,7 +93,7 @@ body {
 /* Main Content */
 .main-content {
     flex: 1;
-    padding: 24px 32px;
+    padding: 16px 24px;
     /* Reduced outer padding */
     background: radial-gradient(circle at top right, #1a1a1a 0%, #050505 40%);
 }
@@ -102,7 +102,7 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     /* Reduced margins */
 }
 
@@ -119,20 +119,27 @@ header h1 {
     /* Monospace for numbers/dates */
 }
 
-/* Grid */
+/* Grid Fluid Architecture */
 .grid-container {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
     gap: 20px;
-    /* Tighter gap */
+    padding-bottom: 50px;
 }
 
 .grid-span-2 {
     grid-column: span 2;
 }
 
+/* Fallback for when there's not enough space for span 2 */
+@media (max-width: 800px) {
+    .grid-span-2 {
+        grid-column: span 1;
+    }
+}
+
 .grid-span-full {
-    grid-column: span 3;
+    grid-column: 1 / -1;
 }
 
 /* Cards */
@@ -143,7 +150,7 @@ header h1 {
     border: 1px solid var(--glass-border);
     border-radius: 12px;
     /* Smaller radius */
-    padding: 20px;
+    padding: 16px;
     /* Slimmer padding */
     box-shadow: var(--card-shadow);
     transition: border-color 0.2s;
@@ -608,20 +615,10 @@ header h1 {
 }
 
 /* Tablet (1024px) */
+/* Tablet (1024px) */
 @media (max-width: 1024px) {
-    .grid-container {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
-    }
 
-    .grid-span-2 {
-        grid-column: span 2;
-    }
-
-    .grid-span-full {
-        grid-column: span 2;
-    }
-
+    /* Let auto-fit handle columns */
     .main-content {
         padding: 30px;
     }
@@ -657,10 +654,7 @@ header h1 {
         padding: 20px;
     }
 
-    .grid-container {
-        grid-template-columns: 1fr;
-        gap: 20px;
-    }
+    /* Let auto-fit handle columns */
 
     .grid-span-2,
     .grid-span-full {

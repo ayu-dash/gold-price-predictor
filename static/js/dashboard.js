@@ -108,13 +108,32 @@ function reassessSignal(currentPriceIdr, forecastPct, confDirection = null, conf
         targetEl.innerText = `Next-Day Target: Rp ${Math.round(predictedPrice).toLocaleString('id-ID')}`;
     }
 
-    // Recalculate Signal (Threshold 0.5% = 0.5)
+    // Recalculate Signal with Momentum Filtering (Sync with predictor.py)
+    const STABILITY_THRESHOLD = 0.25; // 0.25%
+    const BEAR_PROTECTION = 0.5; // 0.5%
+
     let recommendation = 'HOLD';
-    if (forecastPct > 0.5) recommendation = 'BUY';
-    else if (forecastPct < -0.5) recommendation = 'SELL';
-    else if (confScore > 65.0) {
-        if (confDirection === 'UP' && forecastPct > 0.01) recommendation = 'ACCUMULATE';
-        else if (confDirection === 'DOWN' && forecastPct < -0.01) recommendation = 'REDUCE';
+
+    // 1. Momentum-Aware Filtering
+    let isFiltered = false;
+    if (data.is_bullish && forecastPct < 0) {
+        if (Math.abs(forecastPct) < BEAR_PROTECTION) {
+            recommendation = 'HOLD';
+            isFiltered = true;
+        }
+    }
+
+    // 2. Standard Logic (if not filtered)
+    if (!isFiltered) {
+        if (forecastPct > STABILITY_THRESHOLD) {
+            recommendation = forecastPct > 0.5 ? 'BUY' : 'ACCUMULATE';
+        } else if (forecastPct < -STABILITY_THRESHOLD) {
+            recommendation = forecastPct < -0.5 ? 'SELL' : 'REDUCE';
+        } else if (confScore > 65.0) {
+            // Nuanced confidence-driven signals for very small moves
+            if (confDirection === 'UP' && forecastPct > 0.01) recommendation = 'ACCUMULATE';
+            else if (confDirection === 'DOWN' && forecastPct < -0.01) recommendation = 'REDUCE';
+        }
     }
 
     if (signalEl) {
@@ -240,10 +259,13 @@ async function updateDashboardData() {
         }
 
         // Update Signal & Target
-        updateSignalCard(data);
+        try { updateSignalCard(data); } catch (e) { console.error("Signal update failed", e); }
 
         // Update Sentiment
-        updateSentimentCard(data);
+        try { updateSentimentCard(data); } catch (e) { console.error("Sentiment update failed", e); }
+
+        // Update Risk Watchlist
+        try { updateRiskWatchlist(data); } catch (e) { console.error("Risk watchlist update failed", e); }
 
         // Store physical price for spread calculation
         window.lastPhysicalPrice = data.physical_price_idr;
@@ -259,6 +281,10 @@ async function updateDashboardData() {
         if (data.current_price_idr_gram) {
             const priceEl = document.getElementById('price_idr');
             if (priceEl) {
+                // Manually trigger spread update here to guarantee sync
+                if (data.physical_price_idr) {
+                    updateSpreadAndPortfolio(data.current_price_idr_gram);
+                }
                 priceEl.dataset.rate = data.current_idr_rate;
                 // Force update the visual display
                 updatePriceDisplay({
@@ -284,7 +310,27 @@ function updateSignalCard(data) {
     const targetEl = document.getElementById('target_price');
     const lightEl = document.getElementById('signal_light');
 
-    signalEl.innerText = data.recommendation;
+    // Standardize recommendation logic across UI (respecting backend is_bullish)
+    const STABILITY_THRESHOLD = 0.25;
+    const BEAR_PROTECTION = 0.5;
+    let rec = 'HOLD';
+
+    const isBullContext = data.is_bullish || false;
+    const forecastVal = parseFloat(data.change_pct);
+
+    if (isBullContext && forecastVal < 0 && Math.abs(forecastVal) < BEAR_PROTECTION) {
+        rec = 'HOLD';
+    } else {
+        if (forecastVal > STABILITY_THRESHOLD) rec = forecastVal > 0.5 ? 'BUY' : 'ACCUMULATE';
+        else if (forecastVal < -STABILITY_THRESHOLD) rec = forecastVal < -0.5 ? 'SELL' : 'REDUCE';
+        else if (data.confidence_score > 65) {
+            if (data.confidence_direction === 'UP' && forecastVal > 0.01) rec = 'ACCUMULATE';
+            else if (data.confidence_direction === 'DOWN' && forecastVal < -0.01) rec = 'REDUCE';
+        }
+    }
+
+    signalEl.innerText = rec;
+    // ... rest handled by CSS classes later
 
     // Display Target + Confidence
     // Display Target
@@ -524,4 +570,18 @@ function showLoader(show) {
     if (!overlay) return;
     if (show) overlay.classList.add('active');
     else overlay.classList.remove('active');
+}
+function updateRiskWatchlist(data) {
+    const listEl = document.getElementById('risk_watchlist');
+    if (!listEl || !data.dynamic_risks) return;
+
+    listEl.innerHTML = '';
+    data.dynamic_risks.forEach(risk => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span class="dot gold"></span>
+            <div><strong>${risk.title}</strong>: ${risk.desc}</div>
+        `;
+        listEl.appendChild(li);
+    });
 }
