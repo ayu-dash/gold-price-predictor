@@ -220,7 +220,10 @@ def get_prediction():
         # Get high-conf classifier if available
         clf_model = model_obj.get('clf')
         if clf_model:
-            conf_direction, raw_prob = predictor.get_classification_confidence(clf_model, latest_row)
+            # Pass predicted_return for hybrid fallback logic
+            conf_direction, raw_prob = predictor.get_classification_confidence(
+                clf_model, latest_row, predicted_return=predicted_return
+            )
             conf_score = round(raw_prob * 100, 1)
         else:
             # Fallback to Z-score if clf is missing

@@ -87,13 +87,45 @@ def train_neural_network(X: pd.DataFrame, y: pd.Series) -> Tuple[Any, float, flo
     mae = mean_absolute_error(y_test, preds)
     return model, rmse, mae
 
-def train_classifier(X: pd.DataFrame, y: pd.Series) -> Tuple[Any, float, float, float]:
-    """Train the 'Deep Sniper' Triple Ensemble (RF + HGB + ET)."""
+def train_classifier(X: pd.DataFrame, y: pd.Series) -> Tuple[Any, float, float, float, float]:
+    """Train optimized classifier with class balancing and tuned hyperparameters."""
+    from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+    
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, shuffle=False)
 
-    rf = RandomForestClassifier(n_estimators=300, max_depth=12, random_state=42)
-    hgb = HistGradientBoostingClassifier(learning_rate=0.03, max_iter=300, l2_regularization=0.1, random_state=42)
-    et = ExtraTreesClassifier(n_estimators=300, max_depth=12, random_state=42)
+    # Check class distribution
+    n_up = y_train.sum()
+    n_down = len(y_train) - n_up
+    logger.info(f"Class distribution - UP: {n_up}, DOWN: {n_down}")
+
+    rf = RandomForestClassifier(
+        n_estimators=400,
+        max_depth=10,
+        min_samples_split=5,
+        min_samples_leaf=2,
+        class_weight='balanced',
+        random_state=42,
+        n_jobs=-1
+    )
+    
+    hgb = HistGradientBoostingClassifier(
+        learning_rate=0.05,
+        max_iter=400,
+        max_depth=8,
+        l2_regularization=0.2,
+        class_weight='balanced',
+        random_state=42
+    )
+    
+    et = ExtraTreesClassifier(
+        n_estimators=400,
+        max_depth=10,
+        min_samples_split=5,
+        min_samples_leaf=2,
+        class_weight='balanced',
+        random_state=42,
+        n_jobs=-1
+    )
 
     model = VotingClassifier(
         estimators=[('rf', rf), ('hgb', hgb), ('et', et)],
@@ -103,21 +135,38 @@ def train_classifier(X: pd.DataFrame, y: pd.Series) -> Tuple[Any, float, float, 
 
     probs = model.predict_proba(X_test)[:, 1]
     
-    threshold = 0.70
+    threshold = 0.55
     preds = (probs > threshold).astype(int)
     
     acc = accuracy_score(y_test, preds)
     prec = precision_score(y_test, preds, zero_division=0)
     rec = recall_score(y_test, preds, zero_division=0)
     f1 = f1_score(y_test, preds, zero_division=0)
+    
+    logger.info(f"Classifier threshold: {threshold}, Acc: {acc:.2%}, F1: {f1:.2%}")
         
     return model, acc, prec, rec, f1
 
 
-def get_classification_confidence(model: Any, X_input: pd.DataFrame) -> Tuple[str, float]:
-    """Get predicted direction and confidence probability."""
+def get_classification_confidence(model: Any, X_input: pd.DataFrame, predicted_return: float = None) -> Tuple[str, float]:
+    """Get predicted direction and confidence using hybrid approach.
+    
+    Hybrid Logic:
+    - If classifier confidence > 60%: Use classifier direction
+    - If classifier confidence <= 60%: Fall back to regressor direction
+    """
+    CONFIDENCE_THRESHOLD = 0.60
+    
     probs = model.predict_proba(X_input)[0]
-    return ("UP", probs[1]) if probs[1] > 0.5 else ("DOWN", probs[0])
+    clf_prob = max(probs[0], probs[1])
+    clf_direction = "UP" if probs[1] > probs[0] else "DOWN"
+    
+    if clf_prob <= CONFIDENCE_THRESHOLD and predicted_return is not None:
+        reg_direction = "UP" if predicted_return > 0.001 else ("DOWN" if predicted_return < -0.001 else clf_direction)
+        logger.debug(f"Hybrid fallback: clf={clf_direction}({clf_prob:.2%}) -> reg={reg_direction}")
+        return (reg_direction, clf_prob)
+    
+    return (clf_direction, clf_prob)
 
 
 def evaluate_model(model, X_test: pd.DataFrame, y_test: pd.Series) -> Tuple[float, float, np.ndarray]:
@@ -164,13 +213,13 @@ def make_recommendation(
 
     reduce_threshold = 0.004
     sell_threshold = 0.0075
-    bear_protection_threshold = config.HOLD_THRESHOLD # 0.5% default
+    bear_protection_threshold = config.HOLD_THRESHOLD
 
     if is_bullish and change_pct < 0:
         if abs(change_pct) < bear_protection_threshold:
             return "HOLD", change_pct
         elif abs(change_pct) > sell_threshold:
-            return "REDUCE", change_pct # Downgrade Sell to Reduce if Bullish
+            return "REDUCE", change_pct
 
     if change_pct > sell_threshold:
         return "BUY", change_pct
@@ -203,11 +252,8 @@ def recursive_forecast(
     feature_cols = last_known_features.columns.tolist()
 
     for i in range(1, days + 1):
-        # Determine features dynamically but safely
         next_features = current_sim_df.reindex(columns=feature_cols).iloc[[-1]].fillna(0.0)
         
-        # Surgical fix: ensure features match model expectation EXACTLY
-        # If HistGradientBoosting is used, it often stores feature names in feature_names_in_
         target_model = model['med'] if isinstance(model, dict) else model
         if hasattr(target_model, 'feature_names_in_'):
             expected = target_model.feature_names_in_

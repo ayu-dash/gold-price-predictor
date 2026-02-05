@@ -169,6 +169,7 @@ function reassessSignal(currentPriceIdr, forecastPct, confDirection = null, conf
     // Recalculate Signal with Momentum Filtering (Sync with predictor.py)
     const REDUCE_THRESHOLD = 0.4;
     const SELL_THRESHOLD = 0.75;
+    const BEAR_PROTECTION = 0.5; // 0.5% - matches config.HOLD_THRESHOLD
     const BULL_BOOST = 0.15; // Extra buffer if bullish
 
     let recommendation = 'HOLD';

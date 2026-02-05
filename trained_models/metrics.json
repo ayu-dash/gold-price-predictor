@@ -1,5 +1,5 @@
 {
-    "timestamp": "2026-02-06 05:19:18",
+    "timestamp": "2026-02-06 05:49:53",
     "models": {
         "median": {
             "mae": 0.00851,
@@ -14,10 +14,10 @@
             "rmse": 0.023265
         },
         "classifier": {
-            "accuracy": 0.394,
-            "precision": 0.0,
-            "recall": 0.0,
-            "f1": 0.0
+            "accuracy": 0.4634,
+            "precision": 0.7,
+            "recall": 0.1957,
+            "f1": 0.3058
         },
         "neural_network": {
             "mae": 0.009652,
