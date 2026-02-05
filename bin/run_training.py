@@ -81,7 +81,7 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     df_clean.dropna(inplace=True)
 
     df_clean['Target_Return'] = df_clean['Gold_Returns'].shift(-1)
-    df_train = df_clean.dropna()
+    df_train = df_clean.dropna() # Full history for maximum generalization
 
     features = [
         'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
@@ -113,7 +113,9 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     # Train quantile regression ensemble
     print("\n--- Training Model Ensemble (Low/Med/High) ---")
 
-    med_model, X_test_out, y_test_out = predictor.train_model(X, y, quantile=0.5)
+    # Train high-precision ensemble for median (MAE < 0.5% target)
+    logger.info("Training Main Model Ensemble...")
+    med_model, X_test_out, y_test_out = predictor.train_model(X, y) # quantile=None triggers Ensemble
     predictor.save_model(med_model, config.MODEL_MED_PATH)
 
     low_model, _, _ = predictor.train_model(X, y, quantile=0.05)
