@@ -80,10 +80,11 @@ def get_prediction():
     df['Sentiment'] = sentiment
 
     features = [
-        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
-        'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment',
-        'Return_Lag1', 'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5'
+        'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
+        'Stoch', 'WilliamsR', 'CCI', 'ATR', 'Return_Lag1', 
+        'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5',
+        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
     ]
     available_features = [f for f in features if f in df.columns]
 
@@ -106,36 +107,39 @@ def get_prediction():
 
         df = pd.concat([df, new_row])
         df = engineering.add_technical_indicators(df)
-        latest_row = df[available_features].iloc[[-1]]
-    else:
-        latest_row = df[available_features].iloc[[-1]]
+        
+    # Standardize feature vector (Force 27 features, fill missing with 0.0)
+    latest_row = df.reindex(columns=features).iloc[[-1]].fillna(0.0)
 
     # Predict
+    # v5 Deep Sniper: Using Classifier for high-confidence direction
+    # and Regressor (med) for nominal target
     if isinstance(model_obj, dict):
         predicted_return = model_obj['med'].predict(latest_row)[0]
-        pred_med = predicted_return
-        pred_low = model_obj['low'].predict(latest_row)[0]
-        pred_high = model_obj['high'].predict(latest_row)[0]
+        # Get high-conf classifier if available
+        clf_model = model_obj.get('clf')
+        if clf_model:
+            conf_direction, raw_prob = predictor.get_classification_confidence(clf_model, latest_row)
+            conf_score = round(raw_prob * 100, 1)
+        else:
+            # Fallback to Z-score if clf is missing
+            predicted_return = model_obj['med'].predict(latest_row)[0]
+            pred_low = model_obj['low'].predict(latest_row)[0]
+            pred_high = model_obj['high'].predict(latest_row)[0]
+            conf_direction = "UP" if predicted_return > 0 else "DOWN"
+            spread = max(0.0001, pred_high - pred_low)
+            sigma = spread / 3.29
+            z_score = abs(predicted_return) / sigma
+            conf_score = round(stats.norm.cdf(z_score) * 100, 1)
     else:
+        # Legacy support
         predicted_return = model_obj.predict(latest_row)[0]
-        pred_med = predicted_return
-        pred_low = pred_med - 0.01
-        pred_high = pred_med + 0.01
+        conf_direction = "UP" if predicted_return > 0 else "DOWN"
+        conf_score = 50.0
 
     predicted_usd = current_usd * (1 + predicted_return)
 
-    # Calculate confidence using Z-score
-    conf_direction = "UP" if pred_med > 0 else "DOWN"
-    spread = pred_high - pred_low
-    if spread <= 0:
-        spread = 0.0001
-    sigma = spread / 3.29
-    z_score = abs(pred_med) / sigma
-    probability = stats.norm.cdf(z_score)
-    conf_score = round(probability * 100, 1)
-
-    print(f"DEBUG: Med={pred_med*100:.2f}%, Low={pred_low*100:.2f}%, "
-          f"High={pred_high*100:.2f}%, Z={z_score:.2f}, Conf={conf_score}%")
+    print(f"DEBUG v5: Ret={predicted_return*100:.2f}%, Dir={conf_direction}, Conf={conf_score}%")
 
     # Generate signal
     rsi_val = latest_row['RSI'].iloc[0] if 'RSI' in latest_row.columns else 50.0
@@ -286,10 +290,11 @@ def get_forecast():
     df['Sentiment'] = sentiment
 
     features = [
-        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
-        'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment',
-        'Return_Lag1', 'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5'
+        'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
+        'Stoch', 'WilliamsR', 'CCI', 'ATR', 'Return_Lag1', 
+        'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5',
+        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
     ]
     available_features = [f for f in features if f in df.columns]
 
@@ -313,9 +318,9 @@ def get_forecast():
 
         history_buffer = pd.concat([history_buffer, new_row_data])
         history_buffer = engineering.add_technical_indicators(history_buffer)
-        latest_features = history_buffer[available_features].iloc[[-1]]
-    else:
-        latest_features = df[available_features].iloc[[-1]]
+        
+    # Standardize feature vector (Force 27 features, fill missing with 0.0)
+    latest_features = history_buffer.reindex(columns=features).iloc[[-1]].fillna(0.0)
 
     # Predictor with no manual shifts
     forecast_data = predictor.recursive_forecast(

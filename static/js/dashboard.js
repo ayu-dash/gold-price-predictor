@@ -187,10 +187,10 @@ function reassessSignal(currentPriceIdr, forecastPct, confDirection = null, conf
             recommendation = forecastPct > 0.5 ? 'BUY' : 'ACCUMULATE';
         } else if (forecastPct < -STABILITY_THRESHOLD) {
             recommendation = forecastPct < -0.5 ? 'SELL' : 'REDUCE';
-        } else if (confScore > 65.0) {
-            // Nuanced confidence-driven signals for very small moves
-            if (confDirection === 'UP' && forecastPct > 0.01) recommendation = 'ACCUMULATE';
-            else if (confDirection === 'DOWN' && forecastPct < -0.01) recommendation = 'REDUCE';
+        } else if (confScore > 67.0) {
+            // Nuanced confidence-driven signals for very small moves (Sync with predictor.py: 0.1%)
+            if (confDirection === 'UP' && forecastPct > 0.1) recommendation = 'ACCUMULATE';
+            else if (confDirection === 'DOWN' && forecastPct < -0.1) recommendation = 'REDUCE';
         }
     }
 
@@ -375,9 +375,10 @@ function updateSignalCard(data) {
     } else {
         if (forecastVal > STABILITY_THRESHOLD) rec = forecastVal > 0.5 ? 'BUY' : 'ACCUMULATE';
         else if (forecastVal < -STABILITY_THRESHOLD) rec = forecastVal < -0.5 ? 'SELL' : 'REDUCE';
-        else if (data.confidence_score > 65) {
-            if (data.confidence_direction === 'UP' && forecastVal > 0.01) rec = 'ACCUMULATE';
-            else if (data.confidence_direction === 'DOWN' && forecastVal < -0.01) rec = 'REDUCE';
+        else if (data.confidence_score > 67) {
+            // Sync with predictor.py: 0.1% min move for nuanced signals
+            if (data.confidence_direction === 'UP' && forecastVal > 0.1) rec = 'ACCUMULATE';
+            else if (data.confidence_direction === 'DOWN' && forecastVal < -0.1) rec = 'REDUCE';
         }
     }
 

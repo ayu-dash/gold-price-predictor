@@ -288,13 +288,14 @@ def train_and_evaluate(df, df_reg_all):
                 pickle.dump(final_model, f)
             logger.info(f"Classifier saved to {MODEL_SAVE_PATH}")
             
-            # --- TRAIN REGRESSOR (Price Prediction) ---
+            # --- TRAIN REGRESSOR (Experimental Price Prediction) ---
             # Using df_reg_all (Full dataset including small moves)
-            logger.info("📈 Training Price Regressor on FULL dataset (all price moves)...")
+            logger.info("📈 Training Price Regressor (Returns Target) on FULL dataset...")
             
             # Re-engineer features for the full regressor dataset
             X_reg = df_reg_all[features]
-            y_reg = df_reg_all['Gold'].shift(-1).ffill()
+            # Use Returns instead of Price to avoid extreme scale issues in recursion
+            y_reg = df_reg_all['Gold'].pct_change().shift(-1).ffill()
             
             regressor = HistGradientBoostingRegressor(
                 learning_rate=0.03, max_depth=8, max_iter=300, l2_regularization=0.1, random_state=42

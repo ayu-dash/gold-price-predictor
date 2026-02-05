@@ -84,10 +84,11 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     df_train = df_clean.dropna()
 
     features = [
-        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
-        'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment',
-        'Return_Lag1', 'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5'
+        'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
+        'Stoch', 'WilliamsR', 'CCI', 'ATR', 'Return_Lag1', 
+        'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5',
+        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
     ]
 
     valid_features = [f for f in features if f in df_train.columns]
@@ -121,13 +122,18 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     predictor.save_model(low_model, config.MODEL_LOW_PATH)
     predictor.save_model(high_model, config.MODEL_HIGH_PATH)
 
-    # Train and save direction classifier
-    print("\n--- Training Direction Classifier ---")
-    clf_model, clf_acc, clf_prec, clf_rec, clf_f1 = predictor.train_classifier(X, y_class)
+    # --- CLASSIFIER TRAINING (Deep Sniper Sniper Logic) ---
+    # Filter for Significant Moves (>0.15%) to reduce noise
+    df_clf = df_train[abs(df_train['Target_Return']) > 0.0015].copy()
+    X_clf = df_clf[valid_features]
+    y_clf = (df_clf['Target_Return'] > 0).astype(int)
+    
+    print(f"\n--- Training Direction Classifier (Sniper Filter: {len(X_clf)} samples) ---")
+    clf_model, clf_acc, clf_prec, clf_rec, clf_f1 = predictor.train_classifier(X_clf, y_clf)
     predictor.save_model(clf_model, config.MODEL_CLASSIFIER_PATH)
     print(f"Classifier Metrics -> Acc: {clf_acc:.2%}, Prec: {clf_prec:.2%}, Rec: {clf_rec:.2%}, F1: {clf_f1:.2%}")
 
-    # Train neural network
+    # Train neural network (Experimental)
     print("\n--- Training Neural Network (MLP) ---")
     nn_model, nn_rmse, nn_mae = predictor.train_neural_network(X, y)
     predictor.save_model(nn_model, config.MODEL_NN_PATH)
@@ -187,14 +193,14 @@ def run_prediction(model: Any, df: pd.DataFrame, mae: float) -> Dict[str, Any]:
         Dictionary with prediction results.
     """
     features = [
-        'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
-        'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment',
-        'Return_Lag1', 'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5'
+        'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
+        'Stoch', 'WilliamsR', 'CCI', 'ATR', 'Return_Lag1', 
+        'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5',
+        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
     ]
-    valid_features = [f for f in features if f in df.columns]
-
-    latest_features = df[valid_features].iloc[[-1]].copy()
+    # Standardize feature vector (Force 27 features, fill missing with 0.0)
+    latest_features = df.reindex(columns=features).iloc[[-1]].copy().fillna(0.0)
     predicted_return = model.predict(latest_features)[0]
 
     current_price_usd = df['Gold'].iloc[-1]
