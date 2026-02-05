@@ -167,30 +167,29 @@ function reassessSignal(currentPriceIdr, forecastPct, confDirection = null, conf
     }
 
     // Recalculate Signal with Momentum Filtering (Sync with predictor.py)
-    const STABILITY_THRESHOLD = 0.25; // 0.25%
-    const BEAR_PROTECTION = 0.5; // 0.5%
+    const REDUCE_THRESHOLD = 0.4;
+    const SELL_THRESHOLD = 0.75;
+    const BULL_BOOST = 0.15; // Extra buffer if bullish
 
     let recommendation = 'HOLD';
 
     // 1. Momentum-Aware Filtering
-    let isFiltered = false;
     if (isBullish && forecastPct < 0) {
         if (Math.abs(forecastPct) < BEAR_PROTECTION) {
             recommendation = 'HOLD';
-            isFiltered = true;
+        } else if (Math.abs(forecastPct) > SELL_THRESHOLD) {
+            recommendation = 'REDUCE'; // Downgrade Sell to Reduce if Bullish momentum is strong
         }
-    }
-
-    // 2. Standard Logic (if not filtered)
-    if (!isFiltered) {
-        if (forecastPct > STABILITY_THRESHOLD) {
-            recommendation = forecastPct > 0.5 ? 'BUY' : 'ACCUMULATE';
-        } else if (forecastPct < -STABILITY_THRESHOLD) {
-            recommendation = forecastPct < -0.5 ? 'SELL' : 'REDUCE';
-        } else if (confScore > 67.0) {
-            // Nuanced confidence-driven signals for very small moves (Sync with predictor.py: 0.1%)
-            if (confDirection === 'UP' && forecastPct > 0.1) recommendation = 'ACCUMULATE';
-            else if (confDirection === 'DOWN' && forecastPct < -0.1) recommendation = 'REDUCE';
+    } else {
+        // 2. Standard Logic
+        if (forecastPct > SELL_THRESHOLD) recommendation = 'BUY';
+        else if (forecastPct > REDUCE_THRESHOLD) recommendation = 'ACCUMULATE';
+        else if (forecastPct < -SELL_THRESHOLD) recommendation = 'SELL';
+        else if (forecastPct < -REDUCE_THRESHOLD) recommendation = 'REDUCE';
+        else if (confScore > 75.0) {
+            // High confidence for small moves
+            if (confDirection === 'UP' && forecastPct > 0.15) recommendation = 'ACCUMULATE';
+            else if (confDirection === 'DOWN' && forecastPct < -0.15) recommendation = 'REDUCE';
         }
     }
 
@@ -363,7 +362,8 @@ function updateSignalCard(data) {
     const lightEl = document.getElementById('signal_light');
 
     // Standardize recommendation logic across UI (respecting backend is_bullish)
-    const STABILITY_THRESHOLD = 0.25;
+    const REDUCE_THRESHOLD = 0.4;
+    const SELL_THRESHOLD = 0.75;
     const BEAR_PROTECTION = 0.5;
     let rec = 'HOLD';
 
@@ -373,12 +373,13 @@ function updateSignalCard(data) {
     if (isBullContext && forecastVal < 0 && Math.abs(forecastVal) < BEAR_PROTECTION) {
         rec = 'HOLD';
     } else {
-        if (forecastVal > STABILITY_THRESHOLD) rec = forecastVal > 0.5 ? 'BUY' : 'ACCUMULATE';
-        else if (forecastVal < -STABILITY_THRESHOLD) rec = forecastVal < -0.5 ? 'SELL' : 'REDUCE';
-        else if (data.confidence_score > 67) {
-            // Sync with predictor.py: 0.1% min move for nuanced signals
-            if (data.confidence_direction === 'UP' && forecastVal > 0.1) rec = 'ACCUMULATE';
-            else if (data.confidence_direction === 'DOWN' && forecastVal < -0.1) rec = 'REDUCE';
+        if (forecastVal > SELL_THRESHOLD) rec = 'BUY';
+        else if (forecastVal > REDUCE_THRESHOLD) rec = 'ACCUMULATE';
+        else if (forecastVal < -SELL_THRESHOLD) rec = 'SELL';
+        else if (forecastVal < -REDUCE_THRESHOLD) rec = 'REDUCE';
+        else if (data.confidence_score > 75) {
+            if (data.confidence_direction === 'UP' && forecastVal > 0.15) rec = 'ACCUMULATE';
+            else if (data.confidence_direction === 'DOWN' && forecastVal < -0.15) rec = 'REDUCE';
         }
     }
 
@@ -457,8 +458,8 @@ function updateSentimentCard(data) {
             headlines = ["Monitoring global market news..."];
         }
 
-        // 2. Check if data changed significantly (simple hash check)
-        const currentHash = btoa(JSON.stringify(headlines));
+        // 2. Check if data changed significantly (simple JSON compare, no btoa)
+        const currentHash = JSON.stringify(headlines);
         if (commBox.dataset.lastHash !== currentHash) {
             commBox.dataset.lastHash = currentHash;
 

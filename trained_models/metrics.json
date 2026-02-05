@@ -1,31 +1,31 @@
 {
-    "timestamp": "2026-02-06 03:30:17",
+    "timestamp": "2026-02-06 04:58:59",
     "models": {
         "median": {
-            "mae": 0.008084,
-            "rmse": 0.01199
+            "mae": 0.008509,
+            "rmse": 0.012254
         },
         "low": {
-            "mae": 0.018784,
-            "rmse": 0.021284
+            "mae": 0.017043,
+            "rmse": 0.019918
         },
         "high": {
-            "mae": 0.017108,
-            "rmse": 0.020168
+            "mae": 0.019802,
+            "rmse": 0.023264
         },
         "classifier": {
-            "accuracy": 0.4548,
-            "precision": 0.75,
-            "recall": 0.1639,
-            "f1": 0.2691
+            "accuracy": 0.394,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
         },
         "neural_network": {
-            "mae": 0.011428,
-            "rmse": 0.015837
+            "mae": 0.009652,
+            "rmse": 0.013461
         }
     },
-    "train_samples": 2000,
-    "test_samples": 250,
+    "train_samples": 3528,
+    "test_samples": 662,
     "features_used": [
         "USD_IDR",
         "DXY",

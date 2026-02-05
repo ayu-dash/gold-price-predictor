@@ -33,8 +33,37 @@ logger = logging.getLogger(__name__)
 
 
 def train_model(X: pd.DataFrame, y: pd.Series, quantile: Optional[float] = None):
-    """Train a HistGradientBoostingRegressor with optimized v5 Sandbox parameters."""
+    """Train a HistGradientBoostingRegressor or Ensemble with optimized v5 Sandbox parameters."""
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, shuffle=False)
+
+    if quantile is not None:
+        # Quantile regression for Low/High bounds
+        model = HistGradientBoostingRegressor(
+            loss='quantile', 
+            quantile=quantile,
+            learning_rate=0.04,
+            max_iter=400,
+            max_depth=6,
+            l2_regularization=0.1,
+            random_state=42
+        )
+    else:
+        # High-performance Ensemble for Median (Target MAE < 0.5%)
+        hgb = HistGradientBoostingRegressor(
+            loss='absolute_error',
+            learning_rate=0.03,
+            max_iter=500,
+            max_depth=8,
+            l2_regularization=0.5,
+            random_state=42
+        )
+        et = ExtraTreesRegressor(
+            n_estimators=300,
+            max_depth=12,
+            bootstrap=True,
+            random_state=42
+        )
+        model = VotingRegressor(estimators=[('hgb', hgb), ('et', et)])
 
     model.fit(X_train, y_train)
     return model, X_test, y_test
@@ -133,30 +162,30 @@ def make_recommendation(
     change_pct = (predicted_price - current_price) / current_price
     is_bullish = rsi > 60 or (sma and current_price > sma)
 
-    stability_threshold = 0.0025
-    bear_protection_threshold = config.HOLD_THRESHOLD
+    reduce_threshold = 0.004
+    sell_threshold = 0.0075
+    bear_protection_threshold = config.HOLD_THRESHOLD # 0.5% default
 
     if is_bullish and change_pct < 0:
         if abs(change_pct) < bear_protection_threshold:
             return "HOLD", change_pct
+        elif abs(change_pct) > sell_threshold:
+            return "REDUCE", change_pct # Downgrade Sell to Reduce if Bullish
 
-    if change_pct > stability_threshold:
+    if change_pct > sell_threshold:
         return "BUY", change_pct
-    elif change_pct < -stability_threshold:
+    elif change_pct > reduce_threshold:
+        return "ACCUMULATE", change_pct
+    elif change_pct < -sell_threshold:
         return "SELL", change_pct
+    elif change_pct < -reduce_threshold:
+        return "REDUCE", change_pct
 
-    if conf_score and conf_score > 67.0:
-        effective_conf = conf_score
-        if is_bullish and conf_direction == "DOWN":
-            effective_conf -= 10.0
-        elif not is_bullish and conf_direction == "UP":
-            effective_conf -= 10.0
-
-        if effective_conf > 67.0:
-            if conf_direction == "UP" and change_pct > 0.001:
-                return "ACCUMULATE", change_pct
-            elif conf_direction == "DOWN" and change_pct < -0.001:
-                return "REDUCE", change_pct
+    if conf_score and conf_score > 75.0:
+        if conf_direction == "UP" and change_pct > 0.0015:
+            return "ACCUMULATE", change_pct
+        elif conf_direction == "DOWN" and change_pct < -0.0015:
+            return "REDUCE", change_pct
 
     return "HOLD", change_pct
 
