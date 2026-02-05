@@ -13,16 +13,17 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Tuple, Dict, Any, Optional
 
-import numpy as np
-import pandas as pd
-from sklearn.metrics import accuracy_score, precision_score, recall_score
-
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
+import pickle
 import config
-from core.data import loader, signal_logger
+from core.data import loader, signal_logger, sentiment_logger
 from core.features import engineering
 from core.prediction import predictor
 
@@ -61,6 +62,14 @@ def fetch_and_prepare_data() -> Tuple[Optional[pd.DataFrame], Optional[float]]:
         logger.info(f"Market Tendency: {bull_ratio:.1f}% Bullish vs {bear_ratio:.1f}% Bearish")
 
     df['Sentiment'] = sentiment
+    
+    # NEW: Join with granular sentiment history for training
+    sent_df = sentiment_logger.get_sentiment_history()
+    if not sent_df.empty:
+        logger.info(f"Joining with sentiment history ({len(sent_df)} days)...")
+        df = df.join(sent_df[['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio']], how='left')
+        df[['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio']] = df[['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio']].fillna(0.0)
+    
     return df, sentiment
 
 
@@ -134,6 +143,61 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     nn_model, nn_rmse, nn_mae = predictor.train_neural_network(X, y)
     predictor.save_model(nn_model, config.MODEL_NN_PATH)
     print(f"Neural Network MAE: {nn_mae:.4f}")
+
+    # --- LSTM TRAINING (Automated) ---
+    print("\n--- Training LSTM Classifier (Automated) ---")
+    try:
+        # Features for LSTM (including sentiment if available)
+        lstm_features = valid_features + (['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio'] if 'Pos_Ratio' in df_train.columns else [])
+        X_lstm = df_train[lstm_features].values
+        y_lstm = (df_train['Target_Return'] > 0).astype(int).values
+        
+        # Scale
+        from sklearn.preprocessing import StandardScaler
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X_lstm)
+        
+        # Sequence Creation (Lookback 10)
+        seq_len = 10
+        X_seq, y_seq = [], []
+        for i in range(len(X_scaled) - seq_len):
+            X_seq.append(X_scaled[i:i + seq_len])
+            y_seq.append(y_lstm[i + seq_len])
+        
+        X_seq, y_seq = np.array(X_seq), np.array(y_seq)
+        
+        # Simple Production Loop
+        from torch.utils.data import DataLoader, TensorDataset
+        dataset = TensorDataset(torch.FloatTensor(X_seq), torch.FloatTensor(y_seq).unsqueeze(1))
+        train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
+        
+        lstm_model = predictor.FlexibleClassifier(
+            input_size=len(lstm_features),
+            hidden_size=32, num_layers=1, dropout=0.2
+        )
+        
+        # Train for 20 epochs (stable default)
+        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([0.8]))
+        optimizer = torch.optim.Adam(lstm_model.parameters(), lr=0.001)
+        
+        lstm_model.train()
+        for epoch in range(20):
+            for xb, yb in train_loader:
+                optimizer.zero_grad()
+                loss = criterion(lstm_model(xb), yb)
+                loss.backward()
+                optimizer.step()
+        
+        # Save PyTorch Model
+        torch.save(lstm_model.state_dict(), config.MODEL_LSTM_PATH)
+        
+        # Save Scaler
+        with open(config.MODEL_SCALER_PATH, 'wb') as f:
+            pickle.dump(scaler, f)
+            
+        print(f"LSTM model and scaler saved.")
+    except Exception as e:
+        logger.error(f"LSTM Training failed: {e}")
 
     # Evaluate models
     rmse_med, mae_med, _ = predictor.evaluate_model(med_model, X_test_out, y_test_out)

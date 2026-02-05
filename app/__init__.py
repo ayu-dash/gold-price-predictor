@@ -105,6 +105,17 @@ def get_model(retry: bool = True) -> Optional[dict]:
                 clf = predictor.load_model(config.MODEL_CLASSIFIER_PATH)
                 if clf:
                     ensemble['clf'] = clf
+                
+                # Load LSTM if available
+                lstm = predictor.load_lstm_model(config.MODEL_LSTM_PATH, input_size=len(config.MODEL_FEATURES)+3) # +3 for sentiment ratios
+                if not lstm:
+                    # Fallback check for base features only
+                    lstm = predictor.load_lstm_model(config.MODEL_LSTM_PATH, input_size=len(config.MODEL_FEATURES))
+                
+                if lstm:
+                    ensemble['lstm'] = lstm
+                    logger.info("LSTM model loaded into ensemble.")
+                
                 _trained_model = ensemble
                 logger.info("Model ensemble loaded successfully.")
             else:

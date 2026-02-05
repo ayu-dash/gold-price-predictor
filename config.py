@@ -22,6 +22,8 @@ MODEL_LOW_PATH = os.path.join(MODELS_DIR, "gold_model_low.pkl")
 MODEL_HIGH_PATH = os.path.join(MODELS_DIR, "gold_model_high.pkl")
 MODEL_CLASSIFIER_PATH = os.path.join(MODELS_DIR, "gold_classifier.pkl")
 MODEL_NN_PATH = os.path.join(MODELS_DIR, "gold_model_nn.pkl")
+MODEL_LSTM_PATH = os.path.join(MODELS_DIR, "gold_classifier_lstm.pt")
+MODEL_SCALER_PATH = os.path.join(MODELS_DIR, "lstm_scaler.pkl")
 METRICS_PATH = os.path.join(MODELS_DIR, "metrics.json")
 SENTIMENT_CACHE_PATH = os.path.join(MODELS_DIR, "last_sentiment.pkl")
 

@@ -491,6 +491,11 @@ def fetch_news_sentiment(
                 'sentiment_counts': sentiment_counts
             }, f)
         os.replace(temp_cache, cache_path)
+        
+        # Log to sentiment history CSV
+        from core.data import sentiment_logger
+        sentiment_logger.log_sentiment(avg_sentiment, sentiment_counts)
+        
     except Exception as e:
         print(f"  Cache save failed: {e}")
 

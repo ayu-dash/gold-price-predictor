@@ -217,17 +217,50 @@ def get_prediction():
     # and Regressor (med) for nominal target
     if isinstance(model_obj, dict):
         predicted_return = model_obj['med'].predict(latest_row)[0]
-        # Get high-conf classifier if available
-        clf_model = model_obj.get('clf')
-        if clf_model:
-            # Pass predicted_return for hybrid fallback logic
+        
+        # Prepare LSTM / Ensemble Classifier
+        clf_model = model_obj.get('lstm') or model_obj.get('clf')
+        
+        if model_obj.get('lstm') is not None and len(df) >= 10:
+            # Prepare Sequence for LSTM
+            lstm_features = features + (['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio'] if 'Pos_Ratio' in df.columns else [])
+            # Join live sentiment ratios if available
+            if 'Pos_Ratio' in df.columns:
+                total_s = sum(sentiment_breakdown.values())
+                if total_s > 0:
+                    df.iloc[-1, df.columns.get_loc('Pos_Ratio')] = sentiment_breakdown.get('positive', 0) / total_s
+                    df.iloc[-1, df.columns.get_loc('Neg_Ratio')] = sentiment_breakdown.get('negative', 0) / total_s
+                    df.iloc[-1, df.columns.get_loc('Neu_Ratio')] = sentiment_breakdown.get('neutral', 0) / total_s
+            
+            # Extract sequence
+            seq_data = df[lstm_features].tail(10).values
+            
+            # Load Scaler and Transform
+            scaler = predictor.load_model(config.MODEL_SCALER_PATH)
+            if scaler:
+                seq_data_scaled = scaler.transform(seq_data)
+                # Reshape for LSTM: (batch, seq, features)
+                X_input = seq_data_scaled.reshape(1, 10, -1)
+                
+                conf_direction, raw_prob = predictor.get_classification_confidence(
+                    model_obj['lstm'], X_input, predicted_return=predicted_return
+                )
+                conf_score = round(raw_prob * 100, 1)
+            else:
+                # Fallback to ensemble if scaler fails
+                clf_model = model_obj.get('clf')
+                conf_direction, raw_prob = predictor.get_classification_confidence(
+                    clf_model, latest_row, predicted_return=predicted_return
+                )
+                conf_score = round(raw_prob * 100, 1)
+        elif model_obj.get('clf'):
+            # Fallback to Ensemble Classifier
             conf_direction, raw_prob = predictor.get_classification_confidence(
-                clf_model, latest_row, predicted_return=predicted_return
+                model_obj['clf'], latest_row, predicted_return=predicted_return
             )
             conf_score = round(raw_prob * 100, 1)
         else:
-            # Fallback to Z-score if clf is missing
-            predicted_return = model_obj['med'].predict(latest_row)[0]
+            # Fallback to Z-score
             pred_low = model_obj['low'].predict(latest_row)[0]
             pred_high = model_obj['high'].predict(latest_row)[0]
             conf_direction = "UP" if predicted_return > 0 else "DOWN"
