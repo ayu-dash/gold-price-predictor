@@ -20,7 +20,8 @@ MODEL_SAVE_PATH = os.path.join(SCRIPT_DIR, "candidate_model.pkl")
 REGRESSOR_SAVE_PATH = os.path.join(SCRIPT_DIR, "candidate_regressor.pkl")
 
 # LEAKAGE PREVENTION: Only train on data before this date
-TRAIN_CUTOFF = "2025-10-01"
+# Moved to 2025-07-01 to allow a longer 7-month blind test window
+TRAIN_CUTOFF = "2025-07-01"
 
 def load_and_engineer_data():
     """Load data and apply feature engineering (Self-contained for sandbox)."""
@@ -57,11 +58,7 @@ def load_and_engineer_data():
     # Simplest way: Train on filtered, but for the validation loop, we ideally test on all?
     # No, usually we test on "can I predict likely significant moves?".
     # Let's filter the DF returned here.
-    original_len = len(df)
-    df = df[df['Significant']]
-    logger.info(f"Filtered Noise: Kept {len(df)}/{original_len} samples (> 0.15% move)")
-    
-    # 2. Technical Indicators
+    # --- 2. Technical Indicators (Apply to ALL rows first) ---
     # Trend
     df['SMA_7'] = ta.trend.sma_indicator(df['Gold'], window=7)
     df['SMA_14'] = ta.trend.sma_indicator(df['Gold'], window=14)
@@ -74,7 +71,6 @@ def load_and_engineer_data():
         df['Gold_Oil_Ratio'] = df['Gold'] / df['Oil']
         
     # Macro Volatility & Yields (if available in the CSV)
-    # Date,Gold,USD_IDR,DXY,Oil,SP500,NASDAQ,VIX,GVZ,Silver,Copper,Platinum,Palladium,US10Y,USD_CNY,Nikkei,DAX
     if 'VIX' in df.columns:
         df['VIX_Return'] = df['VIX'].pct_change()
         df['VIX_Lag1'] = df['VIX_Return'].shift(1)
@@ -93,8 +89,7 @@ def load_and_engineer_data():
     df['RSI_7'] = ta.momentum.rsi(df['Gold'], window=7)
     df['ROC_10'] = ta.momentum.roc(df['Gold'], window=10)
     
-    # Advanced Indicators (Using 'Gold' as proxy for OHL if HLC missing)
-    # Most indicators in 'ta' can accept 'Gold' for all price fields if needed.
+    # Advanced Indicators
     close = df['Gold']
     high = df['Gold']
     low = df['Gold']
@@ -107,28 +102,36 @@ def load_and_engineer_data():
     df['BB_Width'] = ta.volatility.bollinger_wband(df['Gold'], window=20, window_dev=2)
     df['ATR'] = ta.volatility.average_true_range(high, low, close, window=14)
     
-    # Custom Lags (Crucial for Pattern Recognition)
+    # Custom Lags
     for lag in [1, 2, 3]:
         df[f'Return_Lag{lag}'] = df['Returns'].shift(lag)
-        
     df['RSI_Lag1'] = df['RSI'].shift(1)
     
     # Rolling Stats
     df['Volatility_5'] = df['Returns'].rolling(window=5).std()
     df['Momentum_5'] = df['Gold'] / df['Gold'].shift(5) - 1
     
-    # Filter by Cutoff to prevent leakage
-    df_full = df.copy()
-    df = df[df.index < TRAIN_CUTOFF]
-    logger.info(f"Leakage Prevention: Training set pruned to data before {TRAIN_CUTOFF}")
-    logger.info(f"Final training samples: {len(df)}")
-    
-    # Clean NaN
+    # Clean NaNs after engineering
     df = df.dropna()
-    
-    return df
 
-def train_and_evaluate(df):
+    # --- 3. Split into Classification vs Regression Sets ---
+    # Full dataset for Regressor
+    df_reg_all = df.copy()
+    
+    # Pruned dataset for Classification (Focus on high-signal moves)
+    df_clf = df[df['Significant']].copy()
+    logger.info(f"Filtered Noise (Classification Only): Kept {len(df_clf)}/{len(df_reg_all)} samples (> 0.15% move)")
+    
+    # --- 4. Leakage Prevention (Prune by TRAIN_CUTOFF) ---
+    df_clf = df_clf[df_clf.index < TRAIN_CUTOFF]
+    df_reg_all = df_reg_all[df_reg_all.index < TRAIN_CUTOFF]
+    
+    logger.info(f"Leakage Prevention: Training set pruned to data before {TRAIN_CUTOFF}")
+    logger.info(f"Final training samples (Classification): {len(df_clf)}")
+    
+    return df_clf, df_reg_all
+
+def train_and_evaluate(df, df_reg_all):
     """Train HistGradientBoosting and evaluate with Sniper Logic."""
     features = [
         'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
@@ -286,12 +289,17 @@ def train_and_evaluate(df):
             logger.info(f"Classifier saved to {MODEL_SAVE_PATH}")
             
             # --- TRAIN REGRESSOR (Price Prediction) ---
-            logger.info("📈 Training Price Regressor...")
+            # Using df_reg_all (Full dataset including small moves)
+            logger.info("📈 Training Price Regressor on FULL dataset (all price moves)...")
+            
+            # Re-engineer features for the full regressor dataset
+            X_reg = df_reg_all[features]
+            y_reg = df_reg_all['Gold'].shift(-1).ffill()
+            
             regressor = HistGradientBoostingRegressor(
                 learning_rate=0.03, max_depth=8, max_iter=300, l2_regularization=0.1, random_state=42
             )
-            y_reg = df['Gold'].shift(-1).ffill() 
-            regressor.fit(X, y_reg)
+            regressor.fit(X_reg, y_reg)
             
             with open(REGRESSOR_SAVE_PATH, 'wb') as f:
                 pickle.dump(regressor, f)
@@ -305,5 +313,5 @@ def train_and_evaluate(df):
 
 if __name__ == "__main__":
     logger.info("Initializing Sandbox Environment...")
-    df = load_and_engineer_data()
-    train_and_evaluate(df)
+    df_clf, df_reg = load_and_engineer_data()
+    train_and_evaluate(df_clf, df_reg)

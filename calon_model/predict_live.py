@@ -31,7 +31,10 @@ def get_live_data():
         'SP500': '^GSPC',
         'Silver': 'SI=F',
         'VIX': '^VIX',
-        'US10Y': '^TNX'
+        'US10Y': '^TNX',
+        'USD_IDR': 'IDR=X',
+        'Oil': 'CL=F',
+        'NASDAQ': '^IXIC'
     }
     
     df_map = {}
@@ -75,7 +78,7 @@ def engineer_live_features(df):
     df['BB_Width'] = ta.volatility.bollinger_wband(df['Gold'], window=20, window_dev=2)
     df['ATR'] = ta.volatility.average_true_range(df['Gold'], df['Gold'], df['Gold'], window=14)
     
-    # Lags
+    # Custom Lags
     for lag in [1, 2, 3]:
         df[f'Return_Lag{lag}'] = df['Returns'].shift(lag)
     df['RSI_Lag1'] = df['RSI'].shift(1)
@@ -92,11 +95,6 @@ def engineer_live_features(df):
     df['US10Y_Lag1'] = df['US10Y_Diff'].shift(1)
     df['DXY_Ret_Lag1'] = df['DXY'].pct_change().shift(1)
     df['SP500_Ret_Lag1'] = df['SP500'].pct_change().shift(1)
-
-    # Mocks for missing in live fetch (USD_IDR, Oil, NASDAQ)
-    df['USD_IDR'] = 16000.0 
-    df['Oil'] = 70.0 
-    df['NASDAQ'] = df['SP500'] * 3 
     
     return df.dropna().tail(1)
 

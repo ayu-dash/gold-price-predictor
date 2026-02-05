@@ -29,11 +29,11 @@
         "DXY_Ret_Lag1",
         "SP500_Ret_Lag1"
     ],
-    "threshold": 0.78,
-    "accuracy": 0.6071428571428572,
-    "precision": 0.6071428571428572,
+    "threshold": 0.73,
+    "accuracy": 0.7692307692307692,
+    "precision": 0.7692307692307692,
     "recall": 1.0,
-    "f1": 0.75,
-    "avg_trades": 8.0,
-    "timestamp": "2026-02-06 01:03:42"
+    "f1": 0.85,
+    "avg_trades": 7.0,
+    "timestamp": "2026-02-06 01:19:37"
 }

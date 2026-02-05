@@ -19,31 +19,46 @@ MODEL_PATH = os.path.join(SCRIPT_DIR, "candidate_model.pkl")
 REG_PATH = os.path.join(SCRIPT_DIR, "candidate_regressor.pkl")
 
 def get_fresh_data():
-    """Fetch fresh Gold Futures (GC=F) data from Yahoo Finance."""
-    logger.info("📡 Fetching correlation assets (DXY, SP500, VIX, US10Y)...")
-    ticker = "GC=F"
+    """Fetch fresh Gold Futures (GC=F) and macro data from Yahoo Finance."""
+    logger.info("📡 Fetching correlation assets (DXY, SP500, VIX, US10Y, Silver, USD_IDR, Oil, NASDAQ)...")
     
-    # Define date range for data fetching (last 1 year)
+    # Define date range (last 18 months to ensure enough room for indicators and 7m blind test)
     end_date = pd.Timestamp.now()
-    start_date = end_date - pd.DateOffset(years=1)
+    start_date = end_date - pd.DateOffset(months=18)
 
-    # Fetch Gold Futures data
-    df = yf.download(ticker, start=start_date, end=end_date, interval="1d", progress=False)
+    tickers = {
+        'Gold': 'GC=F',
+        'DXY': 'DX-Y.NYB',
+        'SP500': '^GSPC',
+        'Silver': 'SI=F',
+        'VIX': '^VIX',
+        'US10Y': '^TNX',
+        'USD_IDR': 'IDR=X',
+        'Oil': 'CL=F',
+        'NASDAQ': '^IXIC'
+    }
     
-    if df.empty:
+    df_map = {}
+    for name, sym in tickers.items():
+        try:
+            data = yf.download(sym, start=start_date, end=end_date, interval="1d", progress=False)
+            if not data.empty:
+                # Standardize columns
+                if isinstance(data.columns, pd.MultiIndex):
+                    data.columns = data.columns.get_level_values(0)
+                
+                df_map[name] = data['Close']
+                logger.info(f"  + {name} loaded.")
+        except Exception as e:
+            logger.warning(f"  - Failed to load {name}: {e}")
+            
+    # Combine into one DF and standardize
+    df = pd.DataFrame(df_map).ffill().bfill()
+    if 'Gold' not in df.columns:
         logger.error("Failed to download Gold Futures data.")
         sys.exit(1)
         
-    # Standardize columns (YFinance sometimes uses MultiIndex or weird casing)
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-    
-    # Rename Close to Gold for engineering compatibility
-    df = df.rename(columns={'Close': 'Gold'})
-    
-    # Fill missing if any
-    df = df.dropna()
-    logger.info(f"✅ Downloaded {len(df)} candles of fresh data.")
+    logger.info(f"✅ Downloaded {len(df)} candles of fresh market data.")
     return df
 
 def engineer_features(df):
@@ -100,25 +115,6 @@ def engineer_features(df):
     # SIMPLIFICATION: We will mock the correlation columns safely or fetch them if easy.
     # Actually, let's fetch DXY and SP500 at least. The others we can fill fwd.
     
-    logger.info("📡 Fetching correlation assets (DXY, SP500)...")
-    dxy = yf.download("DX-Y.NYB", period="1y", interval="1d", progress=False)['Close']
-    sp500 = yf.download("^GSPC", period="1y", interval="1d", progress=False)['Close']
-    
-    # Reindex to match Gold
-    if isinstance(dxy, pd.DataFrame): dxy = dxy.iloc[:, 0]
-    if isinstance(sp500, pd.DataFrame): sp500 = sp500.iloc[:, 0]
-    
-    df['DXY'] = dxy.reindex(df.index).ffill()
-    df['SP500'] = sp500.reindex(df.index).ffill()
-    
-    # Missing ones: Oil, NASDAQ, Silver, USD_IDR
-    # We will use simple proxies or just constant last known if download fails, 
-    # but for a "Test" we want accuracy.
-    # Let's fetch Silver at least.
-    silver = yf.download("SI=F", period="1y", interval="1d", progress=False)['Close']
-    if isinstance(silver, pd.DataFrame): silver = silver.iloc[:, 0]
-    df['Silver'] = silver.reindex(df.index).ffill()
-    
     # Inter-market Ratios & Yields
     if 'Silver' in df.columns:
         df['Gold_Silver_Ratio'] = df['Gold'] / df['Silver']
@@ -132,15 +128,11 @@ def engineer_features(df):
     df['DXY_Ret_Lag1'] = df['DXY'].pct_change().shift(1)
     df['SP500_Ret_Lag1'] = df['SP500'].pct_change().shift(1)
 
-    # Mock only absolute minimums if still missing (USD_IDR, Oil, NASDAQ)
-    df['USD_IDR'] = df.get('USD_IDR', 16000.0)
-    df['Oil'] = df.get('Oil', 70.0)
-    df['NASDAQ'] = df.get('NASDAQ', df['SP500'] * 3)
-    
     df = df.dropna()
     
     # Filter for Evaluation (Strictly after Cutoff to prevent leakage)
-    TRAIN_CUTOFF = "2025-10-01"
+    # Adjusted to 2025-07-01 for R&D v4 (7-month backtest)
+    TRAIN_CUTOFF = "2025-07-01"
     df_eval = df[df.index >= TRAIN_CUTOFF].copy()
     
     # Filter for known targets only (drop today since tomorrow is unknown)
