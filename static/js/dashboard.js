@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // 1. Initial Data Fetch
     fetchAnalysis();
     renderChart();
+    runForecast(); // Auto-run on load
 
     // 2. Setup Event Listeners
     setupEventListeners();
@@ -291,16 +292,7 @@ function setupPortfolioLogic() {
 // Core Analytics & Signal (Low Frequency)
 // ----------------------------------------
 async function fetchAnalysis(silent = false) {
-    // Slider Value Updates
-    ['dxy', 'oil', 'idr', 'us10y', 'silver', 'sp500'].forEach(key => {
-        const slider = document.getElementById(`shift_${key}`);
-        const label = document.getElementById(`v_${key}`);
-        if (slider && label) {
-            // Initialize label with current slider value
-            label.innerText = `${slider.value > 0 ? '+' : ''}${slider.value}%`;
-            slider.oninput = () => label.innerText = `${slider.value > 0 ? '+' : ''}${slider.value}%`;
-        }
-    });
+    // Slider Value Updates removed
     await updateDashboardData(silent);
 }
 
@@ -357,6 +349,10 @@ async function updateDashboardData(silent = false) {
     } finally {
         if (!silent) showLoader(false);
     }
+
+    // Auto-refresh forecast significantly less often or on data change?
+    // For now, let's sync it with dashboard updates to be "realtime"
+    if (!silent) runForecast();
 }
 
 function updateSignalCard(data) {
@@ -535,9 +531,14 @@ function drawChart(labels, values, lowValues = null, highValues = null) {
 // Interactions
 // ----------------------------------------
 function setupEventListeners() {
-    // Forecast Button
-    const runBtn = document.getElementById('run_forecast');
-    if (runBtn) runBtn.addEventListener('click', runForecast);
+    // Forecast Input Change
+    const daysInput = document.getElementById('forecast_days');
+    if (daysInput) {
+        daysInput.addEventListener('change', runForecast);
+        daysInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') runForecast();
+        });
+    }
 
     // Force DB Sync
     const syncBtn = document.getElementById('force_sync_btn');
@@ -561,22 +562,7 @@ function setupEventListeners() {
         };
     }
 
-    // Reset Simulation
-    const resetBtn = document.getElementById('reset_simulation');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', () => {
-            ['dxy', 'oil', 'idr', 'us10y', 'silver', 'sp500'].forEach(key => {
-                const slider = document.getElementById(`shift_${key}`);
-                const label = document.getElementById(`v_${key}`);
-                if (slider && label) {
-                    slider.value = 0;
-                    label.innerText = '0%';
-                }
-            });
-            // Optional: Auto-run forecast on reset
-            // runForecast();
-        });
-    }
+    // Reset Simulation button removed
 
     // Timeframe Buttons
     document.querySelectorAll('.tf-btn').forEach(btn => {
@@ -595,19 +581,13 @@ function setupEventListeners() {
 }
 
 async function runForecast() {
+    console.log("[Auto-Run] Starting forecast update...");
     const days = document.getElementById('forecast_days').value;
-    const shiftDxy = document.getElementById('shift_dxy').value;
-    const shiftOil = document.getElementById('shift_oil').value;
-    const shiftIdr = document.getElementById('shift_idr').value;
-    const shiftUs10y = document.getElementById('shift_us10y').value;
-    const shiftSilver = document.getElementById('shift_silver').value;
-    const shiftSp500 = document.getElementById('shift_sp500').value;
-
     const body = document.getElementById('forecast_body');
-    body.innerHTML = '<tr><td colspan="6" class="text-center">Calculating future scenarios...</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="text-center">Updating...</td></tr>';
 
     try {
-        const url = `/api/forecast?days=${days}&dxy_shift=${shiftDxy}&oil_shift=${shiftOil}&idr_shift=${shiftIdr}&us10y_shift=${shiftUs10y}&silver_shift=${shiftSilver}&sp500_shift=${shiftSp500}`;
+        const url = `/api/forecast?days=${days}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -622,9 +602,9 @@ async function runForecast() {
             tr.innerHTML = `
                 <td>${index + 1}</td>
                 <td>${row.date}</td>
-                <td class="text-muted">Rp ${row.price_min.toLocaleString('id-ID')}</td>
-                <td class="text-muted">Rp ${row.price_max.toLocaleString('id-ID')}</td>
-                <td style="font-weight: 600;">Rp ${row.price_idr.toLocaleString('id-ID')}</td>
+                <td>Rp ${row.price_min.toLocaleString('id-ID')}</td>
+                <td>Rp ${row.price_max.toLocaleString('id-ID')}</td>
+                <td style="font-weight: 600; color: var(--gold);">Rp ${row.price_idr.toLocaleString('id-ID')}</td>
                 <td class="${row.change_pct >= 0 ? 'text-gold' : 'text-red'}">
                     ${row.change_pct > 0 ? '+' : ''}${row.change_pct}%
                 </td>

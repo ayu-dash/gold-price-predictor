@@ -434,20 +434,20 @@ header h1 {
 .monitor-table th,
 .forecast-table td,
 .monitor-table td {
-    padding: 8px 10px;
-    text-align: right;
-    /* Default align right */
+    padding: 10px 15px;
+    text-align: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
 }
 
 .forecast-table th:first-child,
 .monitor-table th:first-child,
 .forecast-table td:first-child,
 .monitor-table td:first-child {
-    text-align: left;
-    /* Ticker/Date left */
+    text-align: center;
+    /* Center align Day Index too */
 }
 
 .forecast-table tr:hover,

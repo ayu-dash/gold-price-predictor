@@ -315,22 +315,10 @@ def get_forecast():
     else:
         latest_features = df[available_features].iloc[[-1]]
 
-    # Handle shifts
-    idr_shift_val = request.args.get('idr_shift', default=0, type=float) / 100
-    manual_idr_rate = current_idr_rate * (1 + idr_shift_val)
-
-    shifts = {
-        'DXY': request.args.get('dxy_shift', default=0, type=float) / 100,
-        'Oil': request.args.get('oil_shift', default=0, type=float) / 100,
-        'SP500': request.args.get('sp500_shift', default=0, type=float) / 100,
-        'Silver': request.args.get('silver_shift', default=0, type=float) / 100,
-        'US10Y': request.args.get('us10y_shift', default=0, type=float) / 100,
-        'USD_IDR': idr_shift_val
-    }
-
+    # Predictor with no manual shifts
     forecast_data = predictor.recursive_forecast(
-        model_obj, latest_features, current_usd, manual_idr_rate,
-        days=days, historical_df=history_buffer, shifts=shifts
+        model_obj, latest_features, current_usd, current_idr_rate,
+        days=days, historical_df=history_buffer
     )
 
     formatted = []

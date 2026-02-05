@@ -162,45 +162,13 @@
     <!-- Multi-day Forecast -->
     <div class="card forecast-card glass grid-span-full">
         <div class="card-header">
-            <span>Interactive AI Forecast</span>
+            <span>Realtime AI Forecast</span>
             <div class="forecast-input">
-                <div class="input-line">
-                    <label>Days:</label>
-                    <input type="number" id="forecast_days" value="7" min="2" max="100">
-                    <button id="run_forecast">Run Simulation</button>
-                </div>
-                <div class="simulation-sliders">
-                    <div class="slider-group">
-                        <label>DXY Shift: <span id="v_dxy">0%</span></label>
-                        <input type="range" id="shift_dxy" min="-10" max="10" value="0" step="0.5">
-                    </div>
-                    <div class="slider-group">
-                        <label>Oil Shift: <span id="v_oil">0%</span></label>
-                        <input type="range" id="shift_oil" min="-10" max="10" value="0" step="0.5">
-                    </div>
-                    <div class="slider-group">
-                        <label>USD/IDR Shift: <span id="v_idr">0%</span></label>
-                        <input type="range" id="shift_idr" min="-10" max="10" value="0" step="0.5">
-                    </div>
-                    <!-- Expanded Variables -->
-                    <div class="slider-group">
-                        <label>US10Y Yield: <span id="v_us10y">0%</span></label>
-                        <input type="range" id="shift_us10y" min="-10" max="10" value="0" step="0.5">
-                    </div>
-                    <div class="slider-group">
-                        <label>Silver (XAG): <span id="v_silver">0%</span></label>
-                        <input type="range" id="shift_silver" min="-10" max="10" value="0" step="0.5">
-                    </div>
-                    <div class="slider-group">
-                        <label>S&P 500: <span id="v_sp500">0%</span></label>
-                        <input type="range" id="shift_sp500" min="-10" max="10" value="0" step="0.5">
-                    </div>
-                    <button id="reset_simulation" class="tf-btn"
-                        style="min-width: auto; padding: 0 10px; font-size: 0.8rem; height: 30px; align-self: flex-end;">
-                        <span class="material-symbols-outlined" style="font-size: 1rem;">restart_alt</span>
-                    </button>
-                </div>
+                <label>Days:</label>
+                <input type="number" id="forecast_days" value="7" min="2" max="100">
             </div>
+            <!-- Simulation sliders removed -->
+            <div style="flex-grow: 1;"></div>
         </div>
         <div class="forecast-table-container" style="overflow-x: auto;">
             <table class="forecast-table" style="min-width: 700px;">
@@ -222,6 +190,8 @@
             </table>
         </div>
     </div>
+</div>
+</div>
 </div>
 
 <!-- Portfolio Edit Modal -->
@@ -245,5 +215,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ range(1, 100000) | random }}"></script>
 {% endblock %}

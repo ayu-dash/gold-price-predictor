@@ -154,10 +154,9 @@ def make_recommendation(
 def recursive_forecast(
     model: Any, last_known_features: pd.DataFrame,
     current_price_usd: float, current_rate_idr: float,
-    days: int = 5, historical_df: Optional[pd.DataFrame] = None,
-    shifts: Optional[Dict[str, float]] = None
+    days: int = 5, historical_df: Optional[pd.DataFrame] = None
 ) -> List[Dict[str, Any]]:
-    """Generate multi-day forecast with dynamic feature simulation."""
+    """Generate multi-day forecast with deterministic feature evolution."""
     forecasts = []
     current_sim_df = historical_df.copy() if historical_df is not None else last_known_features.copy()
     current_sim_price = current_price_usd
@@ -181,8 +180,8 @@ def recursive_forecast(
             pred_low = pred_ret - 0.012
             pred_high = pred_ret + 0.012
 
+        # Dampen trend over time, but no random noise
         pred_ret = pred_ret * 0.5 * (0.85 ** (i / 5))
-        pred_ret += np.random.normal(0, 0.003)
         pred_ret = np.clip(pred_ret, -0.03, 0.03)
 
         current_sim_price = current_sim_price * (1 + pred_ret)
@@ -192,16 +191,10 @@ def recursive_forecast(
         new_row.index = [new_row.index[0] + pd.Timedelta(days=1)]
         new_row['Gold'] = current_sim_price
 
-        macro_features = ['Oil', 'DXY', 'SP500', 'Silver', 'Copper', 'US10Y', 'USD_IDR']
-        for feat in macro_features:
-            if feat in new_row.columns:
-                if shifts and feat in shifts and shifts[feat] != 0:
-                    new_row[feat] = new_row[feat] * (1 + shifts[feat] / days)
-                else:
-                    new_row[feat] = new_row[feat] * (1 + np.random.normal(0, 0.005))
-
+        # Hold macro features constant for "real-time" neutral forecast
+        # We could also apply a small trend if desired, but constant is safest for pure prediction
         if 'Sentiment' in new_row.columns:
-            new_row['Sentiment'] = new_row['Sentiment'] * 0.95
+            new_row['Sentiment'] = new_row['Sentiment'] * 0.95  # Decay sentiment
 
         current_sim_df = pd.concat([current_sim_df, new_row])
         current_sim_df = engineering.add_technical_indicators(current_sim_df)
