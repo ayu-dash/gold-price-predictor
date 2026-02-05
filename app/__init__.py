@@ -167,6 +167,34 @@ def _run_periodic_update() -> None:
         NEXT_UPDATE_TIME = time.time() + UPDATE_INTERVAL
 
 
+def check_cold_start() -> None:
+    """Check if models exist and trigger training if missing."""
+    if not os.path.exists(config.MODEL_MED_PATH):
+        # Use a simple file lock to prevent multiple workers from training at once
+        lock_path = os.path.join(config.BASE_DIR, "training.lock")
+        if os.path.exists(lock_path):
+            logger.info("Cold start training already in progress (lock file found). Waiting...")
+            return
+
+        try:
+            with open(lock_path, "w") as f:
+                f.write(str(os.getpid()))
+            
+            logger.info("Model not found. Initializing cold-start training...")
+            script_path = os.path.join(config.BASE_DIR, "bin", "run_training.py")
+            # Increase timeout or handle it gracefully
+            subprocess.run(
+                [sys.executable, script_path, "--days", "1"],
+                check=True,
+                timeout=600 # Allow 10 minutes for cold start
+            )
+        except Exception as e:
+            logger.error(f"Cold start training failed: {e}")
+        finally:
+            if os.path.exists(lock_path):
+                os.remove(lock_path)
+
+
 def _start_scheduler() -> None:
     """Start the background scheduler thread."""
     global _scheduler_started
@@ -199,6 +227,9 @@ def create_app() -> Flask:
     app.config['TRAINING_STATE'] = TRAINING_STATE
     app.config['get_next_update_time'] = lambda: NEXT_UPDATE_TIME
 
+    # Proactive cold-start check
+    check_cold_start()
+
     # Register blueprints
     from app.api import api_bp
     from app.views import views_bp
@@ -211,26 +242,11 @@ def create_app() -> Flask:
 
 def run_app() -> None:
     """Run the Flask application with scheduler."""
-    # Start scheduler:
-    # 1. If not in debug mode, start immediately.
-    # 2. If in debug mode, start only in the child (reloader) process to avoid duplicates.
     is_reloader = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
     is_debug = config.DEBUG
 
     if not is_debug or is_reloader:
         _start_scheduler()
-
-    # Cold start check
-    if not os.path.exists(config.MODEL_MED_PATH):
-        logger.info("Model not found. Initializing cold-start training...")
-        try:
-            script_path = os.path.join(config.BASE_DIR, "bin", "run_training.py")
-            subprocess.run(
-                [sys.executable, script_path, "--days", "1"],
-                check=True
-            )
-        except Exception as e:
-            logger.error(f"Cold start training failed: {e}")
 
     app = create_app()
     app.run(debug=config.DEBUG, host=config.HOST, port=config.PORT)
