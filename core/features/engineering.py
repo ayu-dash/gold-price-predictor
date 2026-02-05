@@ -39,4 +39,14 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     if 'GVZ' in df.columns:
         df['GVZ_Norm'] = df['GVZ'] / 100.0
 
+    # Add Lagged Features for classification
+    df['Return_Lag1'] = df['Gold_Returns'].shift(1)
+    df['Return_Lag2'] = df['Gold_Returns'].shift(2)
+    df['Return_Lag3'] = df['Gold_Returns'].shift(3)
+    df['RSI_Lag1'] = df['RSI'].shift(1)
+    
+    # Volatility / Momentum
+    df['Volatility_5'] = df['Gold_Returns'].rolling(window=5).std()
+    df['Momentum_5'] = df['Gold'].pct_change(periods=5)
+
     return df

@@ -1,26 +1,27 @@
 {
-    "timestamp": "2026-02-05 22:48:12",
+    "timestamp": "2026-02-06 00:17:32",
     "models": {
         "median": {
-            "mae": 0.007725,
-            "rmse": 0.011354
+            "mae": 0.007723,
+            "rmse": 0.011358
         },
         "low": {
-            "mae": 0.020743,
-            "rmse": 0.023131
+            "mae": 0.019872,
+            "rmse": 0.022385
         },
         "high": {
-            "mae": 0.014653,
-            "rmse": 0.017669
+            "mae": 0.01458,
+            "rmse": 0.017618
         },
         "classifier": {
-            "accuracy": 0.4615,
+            "accuracy": 0.4528,
             "precision": 0.0,
-            "recall": 0.0
+            "recall": 0.0,
+            "f1": 0.0
         },
         "neural_network": {
-            "mae": 0.009867,
-            "rmse": 0.013801
+            "mae": 0.007991,
+            "rmse": 0.011618
         }
     },
     "train_samples": 3528,
@@ -48,6 +49,12 @@
         "RSI_7",
         "MACD",
         "BB_Width",
-        "Sentiment"
+        "Sentiment",
+        "Return_Lag1",
+        "Return_Lag2",
+        "Return_Lag3",
+        "RSI_Lag1",
+        "Volatility_5",
+        "Momentum_5"
     ]
 }

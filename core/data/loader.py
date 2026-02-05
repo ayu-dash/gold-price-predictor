@@ -478,8 +478,12 @@ def fetch_news_sentiment(
 def fetch_live_data(ticker: str = 'GC=F') -> Optional[Dict[str, float]]:
     """Fetch the latest available intraday price."""
     try:
+        print(f"DEBUG: Fetching live data for {ticker}...")
         ticker_obj = yf.Ticker(ticker)
         df = ticker_obj.history(period="1d", interval="1m")
+        print(f"DEBUG: {ticker} df shape: {df.shape}")
+        if not df.empty:
+            print(f"DEBUG: {ticker} last row: {df.tail(1)}")
 
         if df.empty:
             df = ticker_obj.history(period="5d")

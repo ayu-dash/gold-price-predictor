@@ -27,7 +27,7 @@ SENTIMENT_CACHE_PATH = os.path.join(MODELS_DIR, "last_sentiment.pkl")
 
 # Constants
 GRAMS_PER_OZ = 31.1035
-UPDATE_INTERVAL_SECONDS = 3600  # 1 hour
+UPDATE_INTERVAL_SECONDS = 43200  # 12 hours
 HOLD_THRESHOLD = 0.005  # 0.5% threshold for hold signal
 
 # Flask Server

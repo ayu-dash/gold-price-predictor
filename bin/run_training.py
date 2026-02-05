@@ -86,12 +86,15 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     features = [
         'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
         'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment',
+        'Return_Lag1', 'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5'
     ]
 
     valid_features = [f for f in features if f in df_train.columns]
+    print(f"DEBUG: Training features ({len(valid_features)}): {valid_features}")
     X = df_train[valid_features]
     y = df_train['Target_Return']
+    y_class = (y > 0).astype(int)  # 1 for Up, 0 for Down
 
     if X.isnull().values.any():
         logger.warning("NaNs found after cleaning. Dropping affected rows...")
@@ -118,31 +121,11 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     predictor.save_model(low_model, config.MODEL_LOW_PATH)
     predictor.save_model(high_model, config.MODEL_HIGH_PATH)
 
-    # Direction classifier evaluation
-    print("\n--- Evaluating Direction Prediction ---")
-
-    y_pred_reg = med_model.predict(X_test_out)
-    y_true_reg = y_test_out.values
-
-    significant_move_mask = np.abs(y_pred_reg) > 0.001
-
-    if np.sum(significant_move_mask) > 10:
-        y_pred_filtered = (y_pred_reg[significant_move_mask] > 0).astype(int)
-        y_true_filtered = (y_true_reg[significant_move_mask] > 0).astype(int)
-
-        clf_acc = accuracy_score(y_true_filtered, y_pred_filtered)
-        clf_prec = precision_score(y_true_filtered, y_pred_filtered, zero_division=0)
-        clf_rec = recall_score(y_true_filtered, y_pred_filtered, zero_division=0)
-        print(f"Filtered Direction -> Acc: {clf_acc:.2%}, Samples: {np.sum(significant_move_mask)}")
-    else:
-        print("Not enough significant moves. Using full set.")
-        y_pred_class = (y_pred_reg > 0).astype(int)
-        y_true_class = (y_test_out > 0).astype(int)
-        clf_acc = accuracy_score(y_true_class, y_pred_class)
-        clf_prec = precision_score(y_true_class, y_pred_class, zero_division=0)
-        clf_rec = recall_score(y_true_class, y_pred_class, zero_division=0)
-
-    print(f"Direction Metrics -> Acc: {clf_acc:.2%}, Prec: {clf_prec:.2%}, Rec: {clf_rec:.2%}")
+    # Train and save direction classifier
+    print("\n--- Training Direction Classifier ---")
+    clf_model, clf_acc, clf_prec, clf_rec, clf_f1 = predictor.train_classifier(X, y_class)
+    predictor.save_model(clf_model, config.MODEL_CLASSIFIER_PATH)
+    print(f"Classifier Metrics -> Acc: {clf_acc:.2%}, Prec: {clf_prec:.2%}, Rec: {clf_rec:.2%}, F1: {clf_f1:.2%}")
 
     # Train neural network
     print("\n--- Training Neural Network (MLP) ---")
@@ -167,7 +150,8 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
             "classifier": {
                 "accuracy": round(clf_acc, 4),
                 "precision": round(clf_prec, 4),
-                "recall": round(clf_rec, 4)
+                "recall": round(clf_rec, 4),
+                "f1": round(clf_f1, 4)
             },
             "neural_network": {"mae": round(float(nn_mae), 6), "rmse": round(float(nn_rmse), 6)}
         },
@@ -205,7 +189,8 @@ def run_prediction(model: Any, df: pd.DataFrame, mae: float) -> Dict[str, Any]:
     features = [
         'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
         'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment',
+        'Return_Lag1', 'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5'
     ]
     valid_features = [f for f in features if f in df.columns]
 

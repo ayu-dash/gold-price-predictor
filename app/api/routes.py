@@ -82,7 +82,8 @@ def get_prediction():
     features = [
         'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
         'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment',
+        'Return_Lag1', 'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5'
     ]
     available_features = [f for f in features if f in df.columns]
 
@@ -287,7 +288,8 @@ def get_forecast():
     features = [
         'Gold', 'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'VIX_Norm', 'GVZ_Norm',
         'Silver', 'Copper', 'Platinum', 'Palladium', 'USD_CNY', 'US10Y', 'Nikkei', 'DAX',
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment'
+        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'MACD', 'BB_Width', 'Sentiment',
+        'Return_Lag1', 'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5'
     ]
     available_features = [f for f in features if f in df.columns]
 
@@ -496,8 +498,9 @@ def retrain_model():
         print("[Manual] Starting model training...")
         try:
             training_state['message'] = 'Running training script...'
+            script_path = os.path.join(config.BASE_DIR, "bin", "run_training.py")
             result = subprocess.run(
-                [sys.executable, "bin/run_training.py", "--days", "1"],
+                [sys.executable, script_path, "--days", "1"],
                 capture_output=True,
                 text=True,
                 timeout=600

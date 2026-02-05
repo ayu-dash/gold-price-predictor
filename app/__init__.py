@@ -106,8 +106,9 @@ def get_model(retry: bool = True) -> Optional[dict]:
             if retry:
                 print("Attempting emergency retrain...")
                 try:
+                    script_path = os.path.join(config.BASE_DIR, "bin", "run_training.py")
                     subprocess.run(
-                        [sys.executable, "bin/run_training.py", "--days", "1"],
+                        [sys.executable, script_path, "--days", "1"],
                         check=True,
                         timeout=300
                     )
@@ -136,8 +137,9 @@ def _run_periodic_update() -> None:
 
         print("\n[Scheduler] Starting periodic update...")
         try:
+            script_path = os.path.join(config.BASE_DIR, "bin", "run_training.py")
             result = subprocess.run(
-                [sys.executable, "bin/run_training.py", "--days", "1"],
+                [sys.executable, script_path, "--days", "1"],
                 capture_output=True,
                 text=True,
                 timeout=600
@@ -213,8 +215,9 @@ def run_app() -> None:
     if not os.path.exists(config.MODEL_MED_PATH):
         print("\n[Cold Start] Model not found. Initializing training...")
         try:
+            script_path = os.path.join(config.BASE_DIR, "bin", "run_training.py")
             subprocess.run(
-                [sys.executable, "bin/run_training.py", "--days", "1"],
+                [sys.executable, script_path, "--days", "1"],
                 check=True
             )
         except Exception as e:
