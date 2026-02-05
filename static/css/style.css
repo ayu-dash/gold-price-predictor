@@ -680,6 +680,35 @@ header h1 {
     box-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
 }
 
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+}
+
+.dot.gold {
+    background-color: var(--gold);
+    box-shadow: 0 0 5px var(--gold);
+}
+
+.dot.red {
+    background-color: var(--red);
+    box-shadow: 0 0 5px var(--red);
+}
+
+.dot.green {
+    background-color: var(--green);
+    box-shadow: 0 0 5px var(--green);
+}
+
+.dot.grey {
+    background-color: #666;
+}
+
+
+
 /* Portfolio Card Density */
 .portfolio-card .portfolio-stats {
     display: flex;
@@ -1206,3 +1235,29 @@ header h1 {
     max-height: none;
     overflow: visible;
 }
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* risk-item-fade removed to prevent visibility issues */

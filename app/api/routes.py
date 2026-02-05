@@ -193,56 +193,68 @@ def get_prediction():
         "dynamic_risks": []
     }
 
-    # Dynamic risk engine
+    # Dynamic risk engine (Expanded)
     dynamic_risks = []
-    if rsi_val > 70:
+    
+    # 1. RSI Logic (Overbought/Oversold)
+    if rsi_val > 75:
         dynamic_risks.append({
-            "title": "Profit Taking",
-            "desc": "High overbought levels detected (RSI > 70). Risk of short-term correction."
+            "title": "Profit Taking Zone",
+            "desc": "RSI extreme (>75). High probability of short-term pullback.",
+            "severity": "high"
         })
-    elif rsi_val < 30:
+    elif rsi_val < 25:
         dynamic_risks.append({
             "title": "Oversold Bounce",
-            "desc": "Market is extremely oversold. Watch for sharp relief rallies."
+            "desc": "RSI extreme (<25). Look for potential reversal entry.",
+            "severity": "medium"
         })
-    else:
+    
+    # 2. VIX (Volatility / Fear)
+    vix_val = latest_row['VIX_Lag1'].iloc[0] if 'VIX_Lag1' in latest_row.columns else 15.0
+    if vix_val > 25:
         dynamic_risks.append({
-            "title": "Trend Consolidation",
-            "desc": "Neutral RSI range. Market is searching for clear direction."
+            "title": "High Market Fear",
+            "desc": f"VIX elevated ({vix_val:.1f}). Expect erratic price action.",
+            "severity": "high"
+        })
+    elif vix_val < 12:
+        dynamic_risks.append({
+            "title": "Complacency",
+            "desc": "VIX very low. Market may be underpricing risk.",
+            "severity": "low"
         })
 
-    abs_daily_change = abs(daily_change_pct)
-    if abs_daily_change > 2.0:
-        dynamic_risks.append({
-            "title": "High Volatility",
-            "desc": "Significant price movement detected. Increased risk of swing reversals."
-        })
-    elif predicted_usd > current_usd * 1.03:
-        dynamic_risks.append({
-            "title": "Upside Breakout",
-            "desc": "Strong AI bullish bias. Watch for volume confirmation at resistance."
-        })
-    else:
-        dynamic_risks.append({
-            "title": "The Fed Policy",
-            "desc": "Ongoing interest rate expectations remain a primary gold price anchor."
-        })
-
+    # 3. DXY (Dollar Strength)
     dxy_val = latest_row['DXY'].iloc[0] if 'DXY' in latest_row.columns else 100
     if dxy_val > 105:
         dynamic_risks.append({
-            "title": "USD Strength",
-            "desc": "Strong Dollar (DXY > 105) acting as heavy resistance for Gold."
+            "title": "USD Headwind",
+            "desc": "Strong Dollar (DXY > 105) putting pressure on Gold.",
+            "severity": "high"
         })
-    elif latest_row['Sentiment'].iloc[0] < -0.1 if 'Sentiment' in latest_row.columns else False:
+    elif dxy_val < 98:
+         dynamic_risks.append({
+            "title": "USD Weakness",
+            "desc": "Weak Dollar providing tailwind for Gold prices.",
+            "severity": "low"
+        })
+
+    # 4. Oil (Inflation Proxy)
+    oil_val = latest_row['Oil'].iloc[0] if 'Oil' in latest_row.columns else 70
+    if oil_val > 90:
         dynamic_risks.append({
-            "title": "Negative Sentiment",
-            "desc": "Prevailing news bias is bearish. Caution on weak support levels."
+            "title": "Energy Inflation",
+            "desc": "Oil prices surging. Inflationary pressure supports Gold.",
+            "severity": "medium"
         })
-    else:
+
+    # 5. Sentiment (Fallback logic if no specific technicals triggered)
+    if not dynamic_risks:
         dynamic_risks.append({
             "title": "Geopolitics",
-            "desc": "Safe-haven demand remains elevated amid global trade uncertainties."
+            "desc": "Safe-haven demand remains elevated amid global trade uncertainties.",
+            "severity": "medium"
         })
 
     result["dynamic_risks"] = dynamic_risks

@@ -704,13 +704,26 @@ function showLoader(show) {
 }
 function updateRiskWatchlist(data) {
     const listEl = document.getElementById('risk_watchlist');
-    if (!listEl || !data.dynamic_risks) return;
+    // Ensure we have data
+    if (!listEl || !data || !data.dynamic_risks) return;
 
+    // Force clear and update (removed hash check to debug "static" issue)
     listEl.innerHTML = '';
-    data.dynamic_risks.forEach(risk => {
+
+    if (data.dynamic_risks.length === 0) {
+        listEl.innerHTML = '<li><span class="dot green"></span><div>Market Conditions Stable</div></li>';
+        return;
+    }
+
+    data.dynamic_risks.forEach((risk) => {
         const li = document.createElement('li');
+
+        let dotColor = 'gold';
+        if (risk.severity && risk.severity === 'high') dotColor = 'red';
+        else if (risk.severity && risk.severity === 'low') dotColor = 'green';
+
         li.innerHTML = `
-            <span class="dot gold"></span>
+            <span class="dot ${dotColor}"></span>
             <div><strong>${risk.title}</strong>: ${risk.desc}</div>
         `;
         listEl.appendChild(li);
