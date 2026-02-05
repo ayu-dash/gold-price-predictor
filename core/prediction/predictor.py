@@ -7,6 +7,7 @@ Handles training models, saving/loading artifacts, and generating forecasts.
 import os
 import pickle
 import tempfile
+import logging
 from typing import Tuple, List, Dict, Any, Optional
 
 import numpy as np
@@ -27,6 +28,8 @@ from sklearn.compose import TransformedTargetRegressor
 
 import config
 from core.features import engineering
+
+logger = logging.getLogger(__name__)
 
 
 def train_model(X: pd.DataFrame, y: pd.Series, quantile: Optional[float] = None):
@@ -171,7 +174,18 @@ def recursive_forecast(
     feature_cols = last_known_features.columns.tolist()
 
     for i in range(1, days + 1):
+        # Determine features dynamically but safely
         next_features = current_sim_df.reindex(columns=feature_cols).iloc[[-1]].fillna(0.0)
+        
+        # Surgical fix: ensure features match model expectation EXACTLY
+        # If HistGradientBoosting is used, it often stores feature names in feature_names_in_
+        target_model = model['med'] if isinstance(model, dict) else model
+        if hasattr(target_model, 'feature_names_in_'):
+            expected = target_model.feature_names_in_
+            next_features = next_features.reindex(columns=expected).fillna(0.0)
+
+        if i == 1:
+            logger.debug(f"Forecast step 1 features: {next_features.columns.tolist()}")
 
         if isinstance(model, dict):
             pred_ret = model['med'].predict(next_features)[0]
