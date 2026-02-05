@@ -13,49 +13,28 @@ logger = logging.getLogger(__name__)
 
 # Config
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+
 MODEL_PATH = os.path.join(SCRIPT_DIR, "candidate_model.pkl")
 REG_PATH = os.path.join(SCRIPT_DIR, "candidate_regressor.pkl")
 METRICS_PATH = os.path.join(SCRIPT_DIR, "candidate_metrics.json")
 
+from core.data.loader import fetch_market_data
+
 def get_live_data():
-    """Fetch the most recent live data for all required features."""
-    logger.info("📡 Fetching LIVE market data...")
+    """Fetch the most recent live data via the professional loader."""
+    logger.info("📡 Fetching LIVE market data via Professional Loader...")
     
-    # We need enough history for indicators (at least 50 days)
-    end_dt = pd.Timestamp.now()
-    start_dt = end_dt - pd.DateOffset(days=100)
+    # We need enough history for indicators (at least 100 days)
+    df = fetch_market_data(period="1y")
     
-    tickers = {
-        'Gold': 'GC=F',
-        'DXY': 'DX-Y.NYB',
-        'SP500': '^GSPC',
-        'Silver': 'SI=F',
-        'VIX': '^VIX',
-        'US10Y': '^TNX',
-        'USD_IDR': 'IDR=X',
-        'Oil': 'CL=F',
-        'NASDAQ': '^IXIC'
-    }
-    
-    df_map = {}
-    for name, sym in tickers.items():
-        try:
-            data = yf.download(sym, start=start_dt, end=end_dt, interval="1d", progress=False)
-            if data.empty:
-                logger.error(f"Failed to fetch {name} ({sym})")
-                sys.exit(1)
+    if df.empty or 'Gold' not in df.columns:
+        logger.error("Failed to fetch live data via loader.")
+        sys.exit(1)
             
-            # Standardize
-            if isinstance(data.columns, pd.MultiIndex):
-                data.columns = data.columns.get_level_values(0)
-            df_map[name] = data['Close']
-        except Exception as e:
-            logger.error(f"Error fetching {name}: {e}")
-            sys.exit(1)
-            
-    # Combine into one DF
-    main_df = pd.DataFrame(df_map).ffill().dropna()
-    return main_df
+    return df
 
 def engineer_live_features(df):
     """Apply exact same engineering as training for the LATEST row."""

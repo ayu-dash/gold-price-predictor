@@ -4,7 +4,7 @@
     "accuracy": 1.0,
     "precision": 1.0,
     "recall": 1.0,
-    "mae": 645.5571930623137,
+    "mae": 649.0649449058568,
     "confusion_matrix": {
         "tp": 3,
         "tn": 0,
@@ -12,5 +12,5 @@
         "fn": 0
     },
     "threshold": 0.72,
-    "timestamp": "2026-02-06 01:19:52"
+    "timestamp": "2026-02-06 01:27:40"
 }

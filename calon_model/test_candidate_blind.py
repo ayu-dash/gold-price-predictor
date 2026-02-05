@@ -15,50 +15,26 @@ logger = logging.getLogger(__name__)
 
 # Config
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+
 MODEL_PATH = os.path.join(SCRIPT_DIR, "candidate_model.pkl")
 REG_PATH = os.path.join(SCRIPT_DIR, "candidate_regressor.pkl")
 
-def get_fresh_data():
-    """Fetch fresh Gold Futures (GC=F) and macro data from Yahoo Finance."""
-    logger.info("📡 Fetching correlation assets (DXY, SP500, VIX, US10Y, Silver, USD_IDR, Oil, NASDAQ)...")
-    
-    # Define date range (last 18 months to ensure enough room for indicators and 7m blind test)
-    end_date = pd.Timestamp.now()
-    start_date = end_date - pd.DateOffset(months=18)
+from core.data.loader import fetch_market_data
 
-    tickers = {
-        'Gold': 'GC=F',
-        'DXY': 'DX-Y.NYB',
-        'SP500': '^GSPC',
-        'Silver': 'SI=F',
-        'VIX': '^VIX',
-        'US10Y': '^TNX',
-        'USD_IDR': 'IDR=X',
-        'Oil': 'CL=F',
-        'NASDAQ': '^IXIC'
-    }
+def get_fresh_data():
+    """Fetch fresh market data via the professional core loader."""
+    logger.info("📡 Fetching ALL assets via Professional Loader...")
+    # Fetching 1yr of data to ensure enough room for 7m blind test + indicators
+    df = fetch_market_data(period="2y") 
     
-    df_map = {}
-    for name, sym in tickers.items():
-        try:
-            data = yf.download(sym, start=start_date, end=end_date, interval="1d", progress=False)
-            if not data.empty:
-                # Standardize columns
-                if isinstance(data.columns, pd.MultiIndex):
-                    data.columns = data.columns.get_level_values(0)
-                
-                df_map[name] = data['Close']
-                logger.info(f"  + {name} loaded.")
-        except Exception as e:
-            logger.warning(f"  - Failed to load {name}: {e}")
-            
-    # Combine into one DF and standardize
-    df = pd.DataFrame(df_map).ffill().bfill()
-    if 'Gold' not in df.columns:
-        logger.error("Failed to download Gold Futures data.")
+    if df.empty or 'Gold' not in df.columns:
+        logger.error("Failed to fetch market data via loader.")
         sys.exit(1)
         
-    logger.info(f"✅ Downloaded {len(df)} candles of fresh market data.")
+    logger.info(f"✅ Loaded {len(df)} rows from professional data pipeline.")
     return df
 
 def engineer_features(df):
