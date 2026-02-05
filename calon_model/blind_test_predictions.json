@@ -1,0 +1,38 @@
+[
+    {
+        "Date": "2025-10-03",
+        "Actual_Price": 3880.800048828125,
+        "Actual_Tomorrow": 3948.5,
+        "Predicted_Tomorrow": 3614.4233628578677,
+        "Actual_Direction": 1,
+        "Predicted_Direction": 1,
+        "Confidence": 0.713424101908949
+    },
+    {
+        "Date": "2025-11-04",
+        "Actual_Price": 3947.699951171875,
+        "Actual_Tomorrow": 3980.300048828125,
+        "Predicted_Tomorrow": 3557.04619030079,
+        "Actual_Direction": 1,
+        "Predicted_Direction": 1,
+        "Confidence": 0.7568552865172004
+    },
+    {
+        "Date": "2025-11-07",
+        "Actual_Price": 3999.39990234375,
+        "Actual_Tomorrow": 4111.7998046875,
+        "Predicted_Tomorrow": 3562.409489884186,
+        "Actual_Direction": 1,
+        "Predicted_Direction": 1,
+        "Confidence": 0.6799004812423597
+    },
+    {
+        "Date": "2025-11-25",
+        "Actual_Price": 4139.2001953125,
+        "Actual_Tomorrow": 4165.2001953125,
+        "Predicted_Tomorrow": 3535.7572352709,
+        "Actual_Direction": 1,
+        "Predicted_Direction": 1,
+        "Confidence": 0.6779334097654831
+    }
+]

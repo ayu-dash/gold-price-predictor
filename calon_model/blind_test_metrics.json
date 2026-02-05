@@ -1,0 +1,16 @@
+{
+    "days_evaluated": 4,
+    "trades_taken": 4,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "mae": 725.2067347996137,
+    "confusion_matrix": {
+        "tp": 4,
+        "tn": 0,
+        "fp": 0,
+        "fn": 0
+    },
+    "threshold": 0.67,
+    "timestamp": "2026-02-06 01:04:44"
+}

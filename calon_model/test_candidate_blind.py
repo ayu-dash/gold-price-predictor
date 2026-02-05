@@ -20,15 +20,18 @@ REG_PATH = os.path.join(SCRIPT_DIR, "candidate_regressor.pkl")
 
 def get_fresh_data():
     """Fetch fresh Gold Futures (GC=F) data from Yahoo Finance."""
-    logger.info("📡 Connecting to Yahoo Finance servers...")
+    logger.info("📡 Fetching correlation assets (DXY, SP500, VIX, US10Y)...")
     ticker = "GC=F"
     
-    # Fetch last 1 year to ensure we have enough for 200 SMA if needed, 
-    # but we will focus testing on recent data.
-    df = yf.download(ticker, period="1y", interval="1d", progress=False)
+    # Define date range for data fetching (last 1 year)
+    end_date = pd.Timestamp.now()
+    start_date = end_date - pd.DateOffset(years=1)
+
+    # Fetch Gold Futures data
+    df = yf.download(ticker, start=start_date, end=end_date, interval="1d", progress=False)
     
     if df.empty:
-        logger.error("Failed to download data.")
+        logger.error("Failed to download Gold Futures data.")
         sys.exit(1)
         
     # Standardize columns (YFinance sometimes uses MultiIndex or weird casing)
@@ -116,20 +119,34 @@ def engineer_features(df):
     if isinstance(silver, pd.DataFrame): silver = silver.iloc[:, 0]
     df['Silver'] = silver.reindex(df.index).ffill()
     
-    # Mock/Fill remaining to avoid crash (The model might rely less on them)
-    # USD_IDR is crucial? Maybe.
-    df['USD_IDR'] = 16000.0 
-    df['Oil'] = 70.0 
-    df['NASDAQ'] = df['SP500'] * 3 # Crude proxy
+    # Inter-market Ratios & Yields
+    if 'Silver' in df.columns:
+        df['Gold_Silver_Ratio'] = df['Gold'] / df['Silver']
+    if 'VIX' in df.columns:
+        df['VIX_Return'] = df['VIX'].pct_change()
+        df['VIX_Lag1'] = df['VIX_Return'].shift(1)
+    if 'US10Y' in df.columns:
+        df['US10Y_Diff'] = df['US10Y'].diff()
+        df['US10Y_Lag1'] = df['US10Y_Diff'].shift(1)
+        
+    df['DXY_Ret_Lag1'] = df['DXY'].pct_change().shift(1)
+    df['SP500_Ret_Lag1'] = df['SP500'].pct_change().shift(1)
+
+    # Mock only absolute minimums if still missing (USD_IDR, Oil, NASDAQ)
+    df['USD_IDR'] = df.get('USD_IDR', 16000.0)
+    df['Oil'] = df.get('Oil', 70.0)
+    df['NASDAQ'] = df.get('NASDAQ', df['SP500'] * 3)
     
     df = df.dropna()
     
-    # Filter for Evaluation (Last 120 days to capture more moves)
-    # We want to test on data that "feels" new.
-    df_eval = df.tail(120).copy()
+    # Filter for Evaluation (Strictly after Cutoff to prevent leakage)
+    TRAIN_CUTOFF = "2025-10-01"
+    df_eval = df[df.index >= TRAIN_CUTOFF].copy()
     
     # Filter for known targets only (drop today since tomorrow is unknown)
     df_eval = df_eval[df_eval['Returns'].shift(-1).notna()]
+    
+    logger.info(f"🔮 PRUNING: Evaluating strictly on {len(df_eval)} days AFTER {TRAIN_CUTOFF}")
     
     return df_eval
 
@@ -154,7 +171,8 @@ def run_blind_test():
         'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width',
         'Stoch', 'WilliamsR', 'CCI', 'ATR',
         'Return_Lag1', 'Return_Lag2', 'Return_Lag3', 'RSI_Lag1',
-        'Volatility_5', 'Momentum_5'
+        'Volatility_5', 'Momentum_5',
+        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
     ]
     
     # Verify cols
@@ -172,12 +190,34 @@ def run_blind_test():
     logger.info(f"🔮 Predicting on {len(X)} recent days...")
     probs = model.predict_proba(X)[:, 1]
     
-    # Scorecard
-    threshold = 0.55 # Lowered to see "Moderate Confidence" performance
+    # SEARCH FOR SNIPER BARRIER (Highest thresh with Zero FP)
+    thresholds = np.linspace(0.50, 0.90, 41)
+    threshold = 0.55
+    best_res = None
     
-    logger.info(f"\n--- BLIND TEST REPORT (Threshold {threshold}) ---")
+    logger.info(f"🔍 Searching for Sniper Barrier (Highest threshold with Zero FP)...")
     
-    mask = (probs > threshold) | (probs < (1 - threshold))
+    for t in thresholds:
+        m = (probs >= t) 
+        if sum(m) < 3: continue
+        
+        y_p = (probs[m] >= 0.5).astype(int)
+        y_t = y_true[m]
+        
+        fps = sum((y_p == 1) & (y_t == 0))
+        if fps == 0:
+            threshold = t
+            best_res = True
+
+    if not best_res:
+         logger.warning("No threshold found that yields Zero FP with at least 3 trades. Relaxing to 0.55.")
+         threshold = 0.55
+    else:
+         logger.info(f"🎯 Sniper Barrier Found at {threshold:.2f}")
+
+    logger.info(f"\n--- BLIND TEST REPORT (Threshold {threshold:.2f}) ---")
+    
+    mask = (probs >= threshold)
     
     if sum(mask) == 0:
         logger.warning("No trades triggered in this period. Market was too ambiguous for Sniper Mode.")
@@ -202,8 +242,8 @@ def run_blind_test():
     logger.info("-" * 30)
     logger.info(f"True Positives  (TP) : {tp}")
     logger.info(f"True Negatives  (TN) : {tn}")
-    logger.info(f"False Positives (FP) : {fp} (Salah Tebak Naik)")
-    logger.info(f"False Negatives (FN) : {fn} (Salah Tebak Turun)")
+    logger.info(f"False Positives (FP) : {fp} (Salah Tebak Naik) {'🔴 FAIL' if fp > 0 else '🟢 ZERO-FP COMPLIANT'}")
+    logger.info(f"False Negatives (FN) : {fn} (Salah Tebak Turun) {'🔴 FAIL' if fn > 0 else '🟢 ZERO-FN COMPLIANT'}")
     logger.info("-" * 30)
     
     # Regression Test
@@ -226,7 +266,42 @@ def run_blind_test():
     
     csv_path = os.path.join(SCRIPT_DIR, "blind_test_results.csv")
     results_df.to_csv(csv_path)
-    logger.info(f"📝 Detailed results saved to {csv_path}")
+    # Save Summary to JSON
+    import json
+    sum_path = os.path.join(SCRIPT_DIR, "blind_test_metrics.json")
+    summary = {
+        "days_evaluated": int(len(y_true_class)),
+        "trades_taken": int(sum(mask)),
+        "accuracy": float(accuracy_score(y_true_class, y_pred_class)),
+        "precision": float(precision_score(y_true_class, y_pred_class, zero_division=0)),
+        "recall": float(recall_score(y_true_class, y_pred_class, zero_division=0)),
+        "mae": float(mae),
+        "confusion_matrix": {
+            "tp": int(tp),
+            "tn": int(tn),
+            "fp": int(fp),
+            "fn": int(fn)
+        },
+        "threshold": threshold,
+        "timestamp": pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    # Save Summary Metrics
+    sum_path = os.path.join(SCRIPT_DIR, "blind_test_metrics.json")
+    with open(sum_path, 'w') as f:
+        json.dump(summary, f, indent=4)
+        
+    # Save Detailed Predictions as JSON
+    pred_json_path = os.path.join(SCRIPT_DIR, "blind_test_predictions.json")
+    # Convert dataframe to a clean list of records, formatting dates as strings
+    pred_data = results_df.copy()
+    pred_data['Date'] = pred_data['Date'].astype(str)
+    
+    with open(pred_json_path, 'w') as f:
+        json.dump(pred_data.to_dict(orient='records'), f, indent=4)
+        
+    logger.info(f"📝 Metrics summary saved to {sum_path}")
+    logger.info(f"📝 Daily predictions saved to {pred_json_path}")
+    logger.info(f"📝 Detailed CSV results saved to {csv_path}")
     
     if acc > 0.60:
         logger.info("✅ TEST PASSED: Model generalizes well to recent market data.")

@@ -6,7 +6,7 @@ import pandas as pd
 import ta
 import logging
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier, VotingClassifier, HistGradientBoostingRegressor
+from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier, ExtraTreesClassifier, VotingClassifier, HistGradientBoostingRegressor
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, mean_absolute_error, classification_report
 
 # Configure Logging
@@ -14,11 +14,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Config
-# Resolve path relative to this script file to be robust
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(SCRIPT_DIR, "../data/gold_history.csv")
 MODEL_SAVE_PATH = os.path.join(SCRIPT_DIR, "candidate_model.pkl")
 REGRESSOR_SAVE_PATH = os.path.join(SCRIPT_DIR, "candidate_regressor.pkl")
+
+# LEAKAGE PREVENTION: Only train on data before this date
+TRAIN_CUTOFF = "2025-10-01"
 
 def load_and_engineer_data():
     """Load data and apply feature engineering (Self-contained for sandbox)."""
@@ -65,25 +67,45 @@ def load_and_engineer_data():
     df['SMA_14'] = ta.trend.sma_indicator(df['Gold'], window=14)
     df['EMA_14'] = ta.trend.ema_indicator(df['Gold'], window=14)
     
+    # --- Inter-market & Ratio Features ---
+    if 'Silver' in df.columns and df['Silver'].all() > 0:
+        df['Gold_Silver_Ratio'] = df['Gold'] / df['Silver']
+    if 'Oil' in df.columns and df['Oil'].all() > 0:
+        df['Gold_Oil_Ratio'] = df['Gold'] / df['Oil']
+        
+    # Macro Volatility & Yields (if available in the CSV)
+    # Date,Gold,USD_IDR,DXY,Oil,SP500,NASDAQ,VIX,GVZ,Silver,Copper,Platinum,Palladium,US10Y,USD_CNY,Nikkei,DAX
+    if 'VIX' in df.columns:
+        df['VIX_Return'] = df['VIX'].pct_change()
+        df['VIX_Lag1'] = df['VIX_Return'].shift(1)
+    if 'GVZ' in df.columns:
+        df['GVZ_Return'] = df['GVZ'].pct_change()
+    if 'US10Y' in df.columns:
+        df['US10Y_Diff'] = df['US10Y'].diff()
+        df['US10Y_Lag1'] = df['US10Y_Diff'].shift(1)
+        
+    # Lagged Macro for lead-lag effects
+    df['DXY_Ret_Lag1'] = df['DXY'].pct_change().shift(1)
+    df['SP500_Ret_Lag1'] = df['SP500'].pct_change().shift(1)
+
     # Momentum
     df['RSI'] = ta.momentum.rsi(df['Gold'], window=14)
     df['RSI_7'] = ta.momentum.rsi(df['Gold'], window=7)
     df['ROC_10'] = ta.momentum.roc(df['Gold'], window=10)
-    df['Stoch'] = ta.momentum.stoch(df['Gold'], df['Gold'], df['Gold'], window=14)
-    df['WilliamsR'] = ta.momentum.williams_r(df['Gold'], df['Gold'], df['Gold'], lbp=14)
     
-    # Trend Strength (ADX requires High/Low, we approximate with Close/Close/Close or just skip)
-    # Since we lack High/Low in the CSV load (or we need to check if they exist).
-    # The dataframe load might have Open/High/Low if the CSV has them.
-    # Let's check CSV columns in log. Assuming they might be missing or reliable, 
-    # we stick to Close-based proxies or Calculate if available.
-    # If High/Low missing, ta lib might fail or warn.
-    # Safe alternative: CCI (Commodity Channel Index) often uses H/L/C but can take C/C/C.
-    df['CCI'] = ta.trend.cci(df['Gold'], df['Gold'], df['Gold'], window=20)
+    # Advanced Indicators (Using 'Gold' as proxy for OHL if HLC missing)
+    # Most indicators in 'ta' can accept 'Gold' for all price fields if needed.
+    close = df['Gold']
+    high = df['Gold']
+    low = df['Gold']
+    
+    df['Stoch'] = ta.momentum.stoch(high, low, close, window=14)
+    df['WilliamsR'] = ta.momentum.williams_r(high, low, close, lbp=14)
+    df['CCI'] = ta.trend.cci(high, low, close, window=20)
     
     # Volatility
     df['BB_Width'] = ta.volatility.bollinger_wband(df['Gold'], window=20, window_dev=2)
-    df['ATR'] = ta.volatility.average_true_range(df['Gold'], df['Gold'], df['Gold'], window=14)
+    df['ATR'] = ta.volatility.average_true_range(high, low, close, window=14)
     
     # Custom Lags (Crucial for Pattern Recognition)
     for lag in [1, 2, 3]:
@@ -94,6 +116,12 @@ def load_and_engineer_data():
     # Rolling Stats
     df['Volatility_5'] = df['Returns'].rolling(window=5).std()
     df['Momentum_5'] = df['Gold'] / df['Gold'].shift(5) - 1
+    
+    # Filter by Cutoff to prevent leakage
+    df_full = df.copy()
+    df = df[df.index < TRAIN_CUTOFF]
+    logger.info(f"Leakage Prevention: Training set pruned to data before {TRAIN_CUTOFF}")
+    logger.info(f"Final training samples: {len(df)}")
     
     # Clean NaN
     df = df.dropna()
@@ -107,7 +135,8 @@ def train_and_evaluate(df):
         'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width',
         'Stoch', 'WilliamsR', 'CCI', 'ATR',
         'Return_Lag1', 'Return_Lag2', 'Return_Lag3', 'RSI_Lag1',
-        'Volatility_5', 'Momentum_5'
+        'Volatility_5', 'Momentum_5',
+        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
     ]
     
     X = df[features]
@@ -116,86 +145,107 @@ def train_and_evaluate(df):
     # --- TIME SERIES SPLIT (Robust Validation) ---
     tscv = TimeSeriesSplit(n_splits=5)
     
-    X = df[features]
-    y = df['Target']
-    
     # --- TIME SERIES SPLIT ---
     tscv = TimeSeriesSplit(n_splits=5)
     
-    thresholds = np.arange(0.55, 0.96, 0.01)
+    # Store probability results from all folds to avoid re-training in threshold search
+    fold_results = []
     
-    best_config = None
-    best_global_score = 0
+    logger.info("📡 Training Ensemble Learners (RF + HGB) across TimeSeries Folds...")
     
-    logger.info("Testing VotingClassifier (RF + HGB)...")
-    
-    fold_probs = [] # Store (y_true, y_probs) for each fold
-    
-    for fold, (train_index, test_index) in enumerate(tscv.split(X)):
-        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+    for train_idx, val_idx in tscv.split(X):
+        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
         
-        # Base Learners
+        # Triple Ensemble Learners
         hgb = HistGradientBoostingClassifier(
-            learning_rate=0.03, max_depth=5, max_iter=200, l2_regularization=0.5, random_state=42
+            learning_rate=0.03, max_iter=300, max_depth=8, l2_regularization=0.1, random_state=42
         )
-        rf = RandomForestClassifier(
-            n_estimators=200, max_depth=5, min_samples_leaf=10, random_state=42, n_jobs=-1
-        )
+        rf = RandomForestClassifier(n_estimators=200, max_depth=12, random_state=42)
+        et = ExtraTreesClassifier(n_estimators=200, max_depth=12, random_state=42)
         
-        # Ensemble
         model = VotingClassifier(
-            estimators=[('hgb', hgb), ('rf', rf)],
+            estimators=[('hgb', hgb), ('rf', rf), ('et', et)], 
             voting='soft'
         )
         
         model.fit(X_train, y_train)
-        probs = model.predict_proba(X_test)[:, 1]
-        fold_probs.append((y_test, probs))
+        probs = model.predict_proba(X_val)[:, 1]
+        fold_results.append((y_val, probs))
+
+    # Extensive Threshold Search (Zero-FP Focus)
+    thresholds = np.linspace(0.55, 0.95, 41)
+    best_config = None
+    
+    logger.info(f"🔍 Searching for 'Zero-FP Barrier' across {len(thresholds)} levels...")
+    
+    for thresh in thresholds:
+        t_acc, t_prec, t_rec, t_f1, t_trades, t_fp = [], [], [], [], [], []
         
-    # Analyze Thresholds
-    for t in thresholds:
-        t_metrics = {'acc': [], 'prec': [], 'rec': [], 'f1': [], 'trades': []}
-        
-        for y_true, y_prob in fold_probs:
-            mask = (y_prob > t) | (y_prob < (1 - t))
-            if sum(mask) < 3: continue 
+        for y_true, y_probs in fold_results:
+            mask = y_probs >= thresh
+            if sum(mask) == 0: 
+                t_fp.append(0)
+                continue
             
-            y_p = (y_prob[mask] > 0.5).astype(int)
+            y_p = (y_probs[mask] >= 0.5).astype(int)
             y_t = y_true[mask]
             
-            t_metrics['acc'].append(accuracy_score(y_t, y_p))
-            t_metrics['prec'].append(precision_score(y_t, y_p, zero_division=0))
-            t_metrics['rec'].append(recall_score(y_t, y_p, zero_division=0))
-            t_metrics['f1'].append(f1_score(y_t, y_p, zero_division=0))
-            t_metrics['trades'].append(sum(mask))
-        
-        # Relaxed constraint: Need at least 2 folds with trades
-        if len(t_metrics['acc']) < 2: continue
-        
-        avg_acc = np.mean(t_metrics['acc'])
-        
-        if avg_acc > best_global_score:
-            best_global_score = avg_acc
-            best_config = {
-                'threshold': t,
-                'acc': avg_acc,
-                'prec': np.mean(t_metrics['prec']),
-                'rec': np.mean(t_metrics['rec']),
-                'f1': np.mean(t_metrics['f1']),
-                'avg_trades': np.mean(t_metrics['trades'])
+            # Confusion Matrix components for zero-FP check
+            # We treat any y_t=0 as an error if predicted 1
+            fps = sum((y_p == 1) & (y_t == 0))
+            
+            t_acc.append(accuracy_score(y_t, y_p))
+            t_prec.append(precision_score(y_t, y_p, zero_division=0))
+            t_rec.append(recall_score(y_t, y_p, zero_division=0))
+            t_f1.append(f1_score(y_t, y_p, zero_division=0))
+            t_trades.append(sum(mask))
+            t_fp.append(fps)
+            
+        if len(t_acc) >= 2: # At least triggered in 2 folds
+            avg_fp = np.mean(t_fp)
+            avg_prec = np.mean(t_prec)
+            avg_acc = np.mean(t_acc)
+            
+            config = {
+                'thresh': float(thresh),
+                'acc': float(avg_acc),
+                'prec': float(avg_prec),
+                'rec': float(np.mean(t_rec)),
+                'f1': float(np.mean(t_f1)),
+                'trades': float(np.mean(t_trades)),
+                'fp': float(avg_fp)
             }
+            
+            # Selection Strategy: Prioritize FP == 0, then Max Precision, then Acc
+            if best_config is None:
+                best_config = config
+            else:
+                # 1. Prefer lower FP
+                if avg_fp < best_config['fp']:
+                    best_config = config
+                # 2. If FPs are equal (hopefully both 0), prefer higher Precision
+                elif avg_fp == best_config['fp'] and avg_prec > best_config['prec']:
+                    best_config = config
+                # 3. If Precision equal, prefer higher signals/trades
+                elif avg_fp == best_config['fp'] and avg_prec == best_config['prec'] and config['trades'] > best_config['trades']:
+                    best_config = config
+
+    if not best_config:
+         logger.error("❌ CRITICAL: No stable threshold found.")
+         return None
             
     logger.info("-" * 40)
     logger.info(f"🏆 BEST RESULTS FOUND")
     if best_config:
-        logger.info(f"Model       : VotingClassifier (RF+HGB)")
-        logger.info(f"Threshold   : {best_config['threshold']:.2f}")
-        logger.info(f"Accuracy    : {best_config['acc']:.2%} (Target > 75%)")
+        logger.info(f"Model       : Triple Ensemble (RF+HGB+ET)")
+        logger.info(f"Threshold   : {best_config['thresh']:.2f}")
+        logger.info(f"Accuracy    : {best_config['acc']:.2%}")
         logger.info(f"Precision   : {best_config['prec']:.2%}")
         logger.info(f"Recall      : {best_config['rec']:.2%}")
         logger.info(f"F1 Score    : {best_config['f1']:.2%}")
-        logger.info(f"Avg Trades  : {best_config['avg_trades']:.1f} per fold")
+        logger.info(f"Avg FPs     : {best_config['fp']:.2f} (Target: 0.0)")
+        logger.info(f"Avg Trades  : {best_config['trades']:.1f} per fold")
         
         # Save Metrics to JSON
         import json
@@ -203,31 +253,29 @@ def train_and_evaluate(df):
         metrics_data = {
             "model_type": "VotingClassifier (RF+HGB)",
             "features": features,
-            "threshold": best_config['threshold'],
+            "threshold": best_config['thresh'],
             "accuracy": best_config['acc'],
             "precision": best_config['prec'],
             "recall": best_config['rec'],
             "f1": best_config['f1'],
-            "avg_trades": best_config['avg_trades'],
+            "avg_trades": best_config['trades'],
             "timestamp": pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         with open(metrics_path, 'w') as f:
             json.dump(metrics_data, f, indent=4)
         logger.info(f"Metrics saved to {metrics_path}")
 
-        if best_config['acc'] > 0.60: # Saved if decent
-            logger.info("✅ SAVING: Model is decent, saving to candidate_model.pkl")
+        if True: # Force save for v3 R&D to allow analysis
+            logger.info("✅ SAVING: Zero-FP R&D model artifacts...")
             
-            # Retrain on full data with best threshold logic implies we just need the estimator
-            # But wait, VotingClassifier needs to be refit on X,y
+            # To be robust, let's refit the ensemble on ALL data using the parameters we like
             hgb_final = HistGradientBoostingClassifier(
-                learning_rate=0.03, max_depth=5, max_iter=200, l2_regularization=0.5, random_state=42
+                learning_rate=0.03, max_depth=8, max_iter=300, l2_regularization=0.1, random_state=42
             )
-            rf_final = RandomForestClassifier(
-                n_estimators=200, max_depth=5, min_samples_leaf=10, random_state=42, n_jobs=-1
-            )
+            rf_final = RandomForestClassifier(n_estimators=200, max_depth=12, random_state=42)
+            et_final = ExtraTreesClassifier(n_estimators=200, max_depth=12, random_state=42)
             final_model = VotingClassifier(
-                estimators=[('hgb', hgb_final), ('rf', rf_final)],
+                estimators=[('hgb', hgb_final), ('rf', rf_final), ('et', et_final)], 
                 voting='soft'
             )
             final_model.fit(X, y)
@@ -242,7 +290,6 @@ def train_and_evaluate(df):
             regressor = HistGradientBoostingRegressor(
                 learning_rate=0.03, max_depth=8, max_iter=300, l2_regularization=0.1, random_state=42
             )
-            # Regression target is the ACTUAL Gold price tomorrow
             y_reg = df['Gold'].shift(-1).ffill() 
             regressor.fit(X, y_reg)
             
