@@ -185,6 +185,13 @@ def get_prediction():
     df = engineering.add_technical_indicators(market_data)
     sentiment, headlines, sentiment_breakdown = loader.fetch_news_sentiment()
     df['Sentiment'] = sentiment
+    
+    # Join with granular sentiment history (MATCH TRAINING PIPELINE)
+    from core.data import sentiment_logger
+    sent_df = sentiment_logger.get_sentiment_history()
+    if not sent_df.empty:
+        df = df.join(sent_df[['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio']], how='left')
+        df[['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio']] = df[['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio']].fillna(0.0)
 
     features = config.MODEL_FEATURES
     available_features = [f for f in features if f in df.columns]
@@ -222,15 +229,20 @@ def get_prediction():
         clf_model = model_obj.get('lstm') or model_obj.get('clf')
         
         if model_obj.get('lstm') is not None and len(df) >= 10:
-            # Prepare Sequence for LSTM
-            lstm_features = features + (['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio'] if 'Pos_Ratio' in df.columns else [])
             # Join live sentiment ratios if available
-            if 'Pos_Ratio' in df.columns:
-                total_s = sum(sentiment_breakdown.values())
-                if total_s > 0:
-                    df.iloc[-1, df.columns.get_loc('Pos_Ratio')] = sentiment_breakdown.get('positive', 0) / total_s
-                    df.iloc[-1, df.columns.get_loc('Neg_Ratio')] = sentiment_breakdown.get('negative', 0) / total_s
-                    df.iloc[-1, df.columns.get_loc('Neu_Ratio')] = sentiment_breakdown.get('neutral', 0) / total_s
+            if 'Pos_Ratio' not in df.columns:
+                df['Pos_Ratio'] = 0.0
+                df['Neg_Ratio'] = 0.0
+                df['Neu_Ratio'] = 0.0
+            
+            total_s = sum(sentiment_breakdown.values())
+            if total_s > 0:
+                df.iloc[-1, df.columns.get_loc('Pos_Ratio')] = sentiment_breakdown.get('positive', 0) / total_s
+                df.iloc[-1, df.columns.get_loc('Neg_Ratio')] = sentiment_breakdown.get('negative', 0) / total_s
+                df.iloc[-1, df.columns.get_loc('Neu_Ratio')] = sentiment_breakdown.get('neutral', 0) / total_s
+            
+            # Prepare Sequence for LSTM (Must be 30 features)
+            lstm_features = features + ['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio']
             
             # Extract sequence
             seq_data = df[lstm_features].tail(10).values
@@ -446,6 +458,13 @@ def get_forecast():
     df = engineering.add_technical_indicators(market_data)
     sentiment, _, _ = loader.fetch_news_sentiment()
     df['Sentiment'] = sentiment
+    
+    # Join with granular sentiment history (MATCH TRAINING PIPELINE)
+    from core.data import sentiment_logger
+    sent_df = sentiment_logger.get_sentiment_history()
+    if not sent_df.empty:
+        df = df.join(sent_df[['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio']], how='left')
+        df[['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio']] = df[['Pos_Ratio', 'Neg_Ratio', 'Neu_Ratio']].fillna(0.0)
 
     features = config.MODEL_FEATURES
     available_features = [f for f in features if f in df.columns]

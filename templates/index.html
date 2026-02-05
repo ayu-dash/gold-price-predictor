@@ -143,6 +143,47 @@
         </div>
     </div>
 
+    <!-- Model Analytics Card -->
+    <div class="card analytics-card glass grid-span-full">
+        <div class="card-header">
+            Algorithmic Performance & Model Analytics
+            <span style="font-size: 0.7rem; opacity: 0.5; font-family: var(--font-mono);">SYNC_UTC: <span
+                    id="metrics_timestamp">--</span></span>
+        </div>
+        <div class="analytics-grid">
+            <div class="analytics-item">
+                <div class="label">Price Accuracy (MAE)</div>
+                <div id="metric_mae_ensemble" class="value">--</div>
+                <div class="sub-value">Ensemble Regressor</div>
+            </div>
+            <div class="analytics-item">
+                <div class="label">Direction Precision</div>
+                <div id="metric_prec_lstm" class="value">--</div>
+                <div class="sub-value">LSTM High-Conf</div>
+            </div>
+            <div class="analytics-item">
+                <div class="label">AI Model Accuracy</div>
+                <div id="metric_acc_nn" class="value">--</div>
+                <div class="sub-value">Neural Network MLP</div>
+            </div>
+            <div class="analytics-item">
+                <div class="label">Training Samples</div>
+                <div id="metric_samples" class="value">--</div>
+                <div class="sub-value">Dataset Metadata</div>
+            </div>
+            <div class="analytics-item">
+                <div class="label">Directional Bias (F1)</div>
+                <div id="metric_f1_lstm" class="value">--</div>
+                <div class="sub-value">Combined Confidence</div>
+            </div>
+            <div class="analytics-item">
+                <div class="label">Prediction Window</div>
+                <div class="value">H1 / D1</div>
+                <div class="sub-value">Target Horizon</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Market Monitor (Terminal Style) -->
     <div class="card terminal-monitor glass grid-span-full">
         <div class="card-header">Global Market Monitor (Terminal Snapshot)</div>

@@ -208,16 +208,12 @@ def get_classification_confidence(model: Any, X_input: pd.DataFrame, predicted_r
         # PyTorch LSTM Inference
         model.eval()
         with torch.no_grad():
-            # Standardize features (Force 27 or 31 features)
-            # For simplicity in production, we'll assume a fixed lookback of 10 for LSTM
-            # If we don't have enough history, fallback to Ensemble
-            val = X_input.values
-            if val.ndim == 2:
-                # We need (batch, seq, features). For a single prediction, we'd need history.
-                # In this simplified production version, if we only have 1 row, 
-                # we treat it as seq_len=1 or fallback.
-                # Real production LSTM would need a feature buffer.
-                logger.warning("LSTM requires sequence history. Falling back to Ensemble logic if available.")
+            # Check if input is DataFrame or numpy
+            val = X_input.values if hasattr(X_input, 'values') else X_input
+            
+            if val.ndim != 3:
+                # LSTM expects (batch, seq, features)
+                logger.warning(f"LSTM requires 3D sequence history (batch, seq, features), got {val.ndim}D. Falling back.")
                 return ("N/A", 0.0)
             
             logits = model(torch.FloatTensor(val).to(torch.device('cpu')))

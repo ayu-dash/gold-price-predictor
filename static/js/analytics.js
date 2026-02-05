@@ -116,19 +116,14 @@ async function fetchModelMetrics() {
 
                 if (m.neural_network) {
                     updateMetricRow('metric_mae_nn', m.neural_network.mae.toFixed(4));
-                } else {
-                    updateMetricRow('metric_mae_nn', 0); // Hide if missing
+                }
+
+                if (m.lstm) {
+                    updateMetricRow('metric_lstm_acc', `${(m.lstm.accuracy * 100).toFixed(1)}%`);
+                    updateMetricRow('metric_lstm_prec', `${(m.lstm.precision * 100).toFixed(1)}%`);
                 }
 
                 updateMetricRow('metric_clf_acc', `${(m.classifier.accuracy * 100).toFixed(1)}%`);
-
-                if (m.classifier.precision !== undefined) {
-                    updateMetricRow('metric_clf_prec', `${(m.classifier.precision * 100).toFixed(1)}%`);
-                    updateMetricRow('metric_clf_rec', `${(m.classifier.recall * 100).toFixed(1)}%`);
-                } else {
-                    updateMetricRow('metric_clf_prec', 0);
-                    updateMetricRow('metric_clf_rec', 0);
-                }
 
                 // Big Accuracy Score (Use Median MAE)
                 const errorMargin = (m.median.mae * 100);

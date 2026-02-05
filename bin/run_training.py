@@ -166,9 +166,14 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
         
         X_seq, y_seq = np.array(X_seq), np.array(y_seq)
         
+        # Split for evaluation
+        split = int(len(X_seq) * 0.8)
+        X_train_lstm, X_test_lstm = X_seq[:split], X_seq[split:]
+        y_train_lstm, y_test_lstm = y_seq[:split], y_seq[split:]
+        
         # Simple Production Loop
         from torch.utils.data import DataLoader, TensorDataset
-        dataset = TensorDataset(torch.FloatTensor(X_seq), torch.FloatTensor(y_seq).unsqueeze(1))
+        dataset = TensorDataset(torch.FloatTensor(X_train_lstm), torch.FloatTensor(y_train_lstm).unsqueeze(1))
         train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
         
         lstm_model = predictor.FlexibleClassifier(
@@ -188,6 +193,18 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
                 loss.backward()
                 optimizer.step()
         
+        # Evaluate LSTM
+        lstm_model.eval()
+        with torch.no_grad():
+            preds_prob = torch.sigmoid(lstm_model(torch.FloatTensor(X_test_lstm))).numpy()
+            preds_class = (preds_prob > 0.5).astype(int)
+            
+            from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+            lstm_acc = accuracy_score(y_test_lstm, preds_class)
+            lstm_prec = precision_score(y_test_lstm, preds_class, zero_division=0)
+            lstm_rec = recall_score(y_test_lstm, preds_class, zero_division=0)
+            lstm_f1 = f1_score(y_test_lstm, preds_class, zero_division=0)
+            
         # Save PyTorch Model
         torch.save(lstm_model.state_dict(), config.MODEL_LSTM_PATH)
         
@@ -195,8 +212,9 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
         with open(config.MODEL_SCALER_PATH, 'wb') as f:
             pickle.dump(scaler, f)
             
-        print(f"LSTM model and scaler saved.")
+        print(f"LSTM model and scaler saved. Metrics: Acc {lstm_acc:.4f}, Prec {lstm_prec:.4f}")
     except Exception as e:
+        lstm_acc = lstm_prec = lstm_rec = lstm_f1 = 0
         logger.error(f"LSTM Training failed: {e}")
 
     # Evaluate models
@@ -218,6 +236,12 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
                 "precision": round(clf_prec, 4),
                 "recall": round(clf_rec, 4),
                 "f1": round(clf_f1, 4)
+            },
+            "lstm": {
+                "accuracy": round(float(lstm_acc), 4),
+                "precision": round(float(lstm_prec), 4),
+                "recall": round(float(lstm_rec), 4),
+                "f1": round(float(lstm_f1), 4)
             },
             "neural_network": {"mae": round(float(nn_mae), 6), "rmse": round(float(nn_rmse), 6)}
         },

@@ -430,6 +430,46 @@ header h1 {
     border-collapse: collapse;
 }
 
+/* Analytics Grid */
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.analytics-item {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.analytics-item .label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    font-family: var(--font-mono);
+}
+
+.analytics-item .value {
+    font-family: var(--font-mono);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--terminal-gold);
+}
+
+.analytics-item .sub-value {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    opacity: 0.7;
+}
+
 .forecast-table th,
 .monitor-table th,
 .forecast-table td,

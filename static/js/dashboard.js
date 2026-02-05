@@ -6,6 +6,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     // 1. Initial Data Fetch
     fetchAnalysis();
+    fetchMetrics(); // Initial metrics fetch
     renderChart();
     runForecast(); // Auto-run on load
 
@@ -21,7 +22,10 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('current_date').textContent = now.toDateString();
 
     // 5. Start Dashboard Refresh Loop (Every 60s) - SILENT
-    setInterval(() => updateDashboardData(true), 60000);
+    setInterval(() => {
+        updateDashboardData(true);
+        fetchMetrics(true);
+    }, 60000);
 
     // 6. Signal Countdown
     startSignalCountdown();
@@ -352,7 +356,44 @@ async function updateDashboardData(silent = false) {
 
     // Auto-refresh forecast significantly less often or on data change?
     // For now, let's sync it with dashboard updates to be "realtime"
-    if (!silent) runForecast();
+    if (!silent) {
+        runForecast();
+        fetchMetrics(true);
+    }
+}
+
+async function fetchMetrics(silent = false) {
+    try {
+        const response = await fetch('/api/model_metrics');
+        const data = await response.json();
+
+        if (data.error) return;
+
+        // Populate Analytics Section
+        if (data.models) {
+            // Ensemble MAE
+            const mae = data.models.median ? (data.models.median.mae * 100).toFixed(2) + '%' : '--';
+            document.getElementById('metric_mae_ensemble').innerText = mae;
+
+            // LSTM Precision
+            const prec = data.models.lstm ? (data.models.lstm.precision * 100).toFixed(1) + '%' : '--';
+            document.getElementById('metric_prec_lstm').innerText = prec;
+
+            // Neural Network Accuracy (using MAE as proxy or actual acc)
+            const nn_mae = data.models.neural_network ? (data.models.neural_network.mae * 100).toFixed(2) + '%' : '--';
+            document.getElementById('metric_acc_nn').innerText = nn_mae;
+
+            // F1 LSTM
+            const f1 = data.models.lstm ? (data.models.lstm.f1 * 100).toFixed(1) + '%' : '--';
+            document.getElementById('metric_f1_lstm').innerText = f1;
+        }
+
+        document.getElementById('metric_samples').innerText = data.train_samples ? data.train_samples.toLocaleString() : '--';
+        document.getElementById('metrics_timestamp').innerText = data.timestamp || '--';
+
+    } catch (e) {
+        console.error("Failed to fetch metrics", e);
+    }
 }
 
 function updateSignalCard(data) {

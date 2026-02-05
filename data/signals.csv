@@ -1,2 +1,2 @@
 Date,Price_USD,Predicted_USD,Signal,Confidence,Timestamp
-2026-02-07,4798.1,4789.83,HOLD,N/A (0.0%),2026-02-06 06:26:35
+2026-02-07,4760.3,4740.01,REDUCE,UP (73.8%),2026-02-06 06:50:41

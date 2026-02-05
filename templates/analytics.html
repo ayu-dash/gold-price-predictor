@@ -48,8 +48,16 @@
                     <span id="metric_reliability" class="value text-gold">Calculating...</span>
                 </div>
                 <div class="metric-item">
-                    <span class="label">Directional Accuracy (Classifier):</span>
+                    <span class="label">Directional Accuracy (Ensemble):</span>
                     <span id="metric_clf_acc" class="value">--</span>
+                </div>
+                <div class="metric-item" style="color: var(--terminal-gold);">
+                    <span class="label">Deep Learning Accuracy (LSTM):</span>
+                    <span id="metric_lstm_acc" class="value" style="font-weight: 700;">--</span>
+                </div>
+                <div class="metric-item">
+                    <span class="label">LSTM Target Precision:</span>
+                    <span id="metric_lstm_prec" class="value">--</span>
                 </div>
                 <div class="metric-item">
                     <span class="label">Median Model (Main) MAE:</span>
@@ -64,8 +72,8 @@
                     <span id="metric_mae_high" class="value">--</span>
                 </div>
                 <div class="metric-item">
-                    <span class="label">Neural Network (Deep Learning) MAE:</span>
-                    <span id="metric_mae_nn" class="value text-gold">--</span>
+                    <span class="label">Neural Network (Regressor) MAE:</span>
+                    <span id="metric_mae_nn" class="value">--</span>
                 </div>
                 <div class="metric-item" style="border-top: 1px solid var(--glass-border); padding-top: 10px;">
                     <span class="label">Data Samples Covered:</span>
