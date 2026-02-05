@@ -682,8 +682,8 @@ header h1 {
 
 /* Portfolio Card Density */
 .portfolio-card .portfolio-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 15px;
     margin: 15px 0;
     padding: 15px;
@@ -1099,4 +1099,43 @@ header h1 {
     .card {
         padding: 10px !important;
     }
+}
+
+/* Sentiment Commentary Feed */
+.sentiment-commentary {
+    margin-top: 15px;
+    padding-top: 12px;
+    border-top: 1px solid var(--glass-border);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    height: 65px;
+    overflow: hidden;
+    position: relative;
+    color: var(--text-muted);
+}
+
+.comment-item {
+    position: absolute;
+    width: 100%;
+    opacity: 0;
+    transform: translateY(15px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: normal;
+    overflow: visible;
+}
+
+.comment-item.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.comment-item.exit {
+    opacity: 0;
+    transform: translateY(-15px);
+}
+
+.comment-prefix {
+    color: var(--terminal-gold);
+    margin-right: 5px;
+    font-weight: 700;
 }

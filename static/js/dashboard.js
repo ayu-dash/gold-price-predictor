@@ -428,6 +428,8 @@ function updateSignalCard(data) {
     reassessSignal(data.current_price_idr_gram, data.change_pct, data.confidence_direction, data.confidence_score, data.is_bullish);
 }
 
+let commentaryInterval = null;
+
 function updateSentimentCard(data) {
     const nPos = data.sentiment_breakdown.positive || 0;
     const nNeg = data.sentiment_breakdown.negative || 0;
@@ -441,6 +443,71 @@ function updateSentimentCard(data) {
         document.getElementById('bear_ratio').textContent = bearPct.toFixed(1) + '%';
     }
     document.getElementById('sentiment_avg').textContent = `Avg Score: ${data.sentiment_score}`;
+
+    // Live Commentary Logic (Deep Sniper v5 Decoration)
+    const feedContainer = document.getElementById('sentiment_feed');
+    if (feedContainer) {
+        let messages = [];
+
+        // Use headlines if available (Handle both string and object arrays)
+        if (data.top_headlines && data.top_headlines.length > 0) {
+            messages = data.top_headlines.map(h => typeof h === 'string' ? h : (h.title || JSON.stringify(h)));
+        }
+
+        // Add dynamic risks as comments too
+        if (data.dynamic_risks && data.dynamic_risks.length > 0) {
+            data.dynamic_risks.forEach(r => messages.push(`${r.title}: ${r.desc}`));
+        }
+
+        // Fallback if empty
+        if (messages.length === 0) {
+            messages = [
+                "Analyzing global liquidity flows...",
+                "Monitoring XAU/USD technical pivots...",
+                "Waiting for institutional volume confirmation.",
+                "Safe-haven demand remains persistent."
+            ];
+        }
+
+        startCommentaryRotation(messages);
+    }
+}
+
+function startCommentaryRotation(messages) {
+    const feed = document.getElementById('sentiment_feed');
+    if (!feed) return;
+
+    // Clear existing interval to avoid duplicates
+    if (commentaryInterval) clearInterval(commentaryInterval);
+
+    let index = 0;
+    const botPrefixes = ["AI_OBSERVER", "CORE_GEARS", "MARKET_SENTINEL", "PULSE_GEN"];
+
+    const showNext = () => {
+        const current = feed.querySelector('.comment-item.active');
+        if (current) {
+            current.classList.remove('active');
+            current.classList.add('exit');
+            setTimeout(() => current.remove(), 400);
+        }
+
+        const next = document.createElement('div');
+        next.className = 'comment-item';
+        const prefix = botPrefixes[Math.floor(Math.random() * botPrefixes.length)];
+        const msg = messages[index % messages.length];
+
+        next.innerHTML = `<span class="comment-prefix">${prefix}:</span> ${msg}`;
+        feed.appendChild(next);
+
+        // Trigger reflow for transition
+        next.offsetHeight;
+        next.classList.add('active');
+
+        index++;
+    };
+
+    showNext(); // Initial show
+    commentaryInterval = setInterval(showNext, 6000);
 }
 
 // ----------------------------------------

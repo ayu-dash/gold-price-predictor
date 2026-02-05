@@ -177,7 +177,6 @@ def recursive_forecast(
     current_sim_df = historical_df.copy() if historical_df is not None else last_known_features.copy()
     current_sim_price = current_price_usd
 
-    # v5 Deep Sniper: Uses exactly 27 features identified in metrics.json
     feature_cols = [
         'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
         'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
@@ -187,7 +186,6 @@ def recursive_forecast(
     ]
 
     for i in range(1, days + 1):
-        # Force exact 27 features and order, filling missing (like Silver ratio on day 1 if missing) with 0.0
         next_features = current_sim_df.reindex(columns=feature_cols).iloc[[-1]].fillna(0.0)
 
         if isinstance(model, dict):
@@ -199,22 +197,16 @@ def recursive_forecast(
             pred_low = pred_ret - 0.012
             pred_high = pred_ret + 0.012
 
-        # Calculate recent volatility (standard deviation of last 20 returns) if available
         volatility = 0.01  # Default 1%
         if historical_df is not None and len(historical_df) > 20:
-             # pct_change might not be in columns, calculate manually if needed
              if 'Gold' in historical_df.columns:
                  recent_closes = historical_df['Gold'].tail(20)
                  volatility = recent_closes.pct_change().std()
         
-        # Inject natural market noise (mean 0, std=volatility)
-        # We scale it down slightly (0.5) to keep the forecast conservative but 'alive'
         noise = np.random.normal(0, volatility * 0.8)
         
-        # Combine model trend + noise
         pred_ret = pred_ret + noise
         
-        # Clip to prevent extreme outliers in simulation
         pred_ret = np.clip(pred_ret, -0.05, 0.05)
 
         current_sim_price = current_sim_price * (1 + pred_ret)
@@ -224,20 +216,12 @@ def recursive_forecast(
         new_row.index = [new_row.index[0] + pd.Timedelta(days=1)]
         new_row['Gold'] = current_sim_price
 
-        # Hold macro features constant for "real-time" neutral forecast
-        # We could also apply a small trend if desired, but constant is safest for pure prediction
         if 'Sentiment' in new_row.columns:
-            new_row['Sentiment'] = new_row['Sentiment'] * 0.95  # Decay sentiment
+            new_row['Sentiment'] = new_row['Sentiment'] * 0.95
 
         current_sim_df = pd.concat([current_sim_df, new_row])
         
-        # Re-calculate technicals
         current_sim_df = engineering.add_technical_indicators(current_sim_df)
-        
-        # Manually update lags for the new row since shift() needs history
-        # (add_technical_indicators already does shift/rolling if history is sufficient, 
-        # but let's ensure the last row is valid)
-        pass
 
         forecasts.append({
             'Day': i, 'Date': new_row.index[0].strftime('%Y-%m-%d'),
