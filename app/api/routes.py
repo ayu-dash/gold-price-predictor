@@ -69,54 +69,106 @@ def force_db_update():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-def generate_market_insights(df, sentiment, current_usd, daily_change_pct, latest_row):
-    """Generate professional dynamic insights based on latest data."""
+def generate_market_insights(df, sentiment, current_usd, daily_change_pct, latest_row, 
+                              conf_direction="UP", conf_score=50.0, recommendation="HOLD"):
+    """Generate professional dynamic insights aligned with AI prediction.
+    
+    Args:
+        conf_direction: Model prediction direction ("UP" or "DOWN")
+        conf_score: Model confidence score (0-100)
+        recommendation: Trading recommendation from model
+    """
     insights = []
     
-    # 1. Technical Indicators
+    # Primary Insight: AI Prediction Summary (Always first)
+    if conf_direction == "UP":
+        if conf_score >= 70:
+            insights.append({
+                "title": "🔥 AI Bullish Signal",
+                "desc": f"Model memprediksi kenaikan harga dengan confidence {conf_score:.0f}%. Momentum beli terdeteksi kuat.",
+                "aligned": True
+            })
+        else:
+            insights.append({
+                "title": "📈 AI Mild Bullish",
+                "desc": f"Model memprediksi kenaikan moderat (confidence {conf_score:.0f}%). Sinyal beli dengan kehati-hatian.",
+                "aligned": True
+            })
+    else:
+        if conf_score >= 70:
+            insights.append({
+                "title": "⚠️ AI Bearish Alert",
+                "desc": f"Model mendeteksi tekanan jual dengan confidence {conf_score:.0f}%. Pertimbangkan untuk hold/take profit.",
+                "aligned": True
+            })
+        else:
+            insights.append({
+                "title": "📉 AI Mild Bearish",
+                "desc": f"Model memprediksi koreksi ringan (confidence {conf_score:.0f}%). Waspadai penurunan jangka pendek.",
+                "aligned": True
+            })
+    
+    # Collect supporting insights
+    bullish_insights = []
+    bearish_insights = []
+    neutral_insights = []
+    
+    # 1. Technical Indicators (RSI)
     rsi = latest_row['RSI'].iloc[0] if 'RSI' in latest_row.columns else 50
     if rsi > 70:
-        insights.append({"title": "Profit Taking", "desc": "RSI di level Overbought (>70). Risiko koreksi teknikal meningkat karena aksi ambil untung."})
+        bearish_insights.append({"title": "Profit Taking", "desc": "RSI di level Overbought (>70). Risiko koreksi teknikal meningkat."})
     elif rsi < 30:
-        insights.append({"title": "Accumulation Zone", "desc": "Pasar sudah Oversold (RSI < 30). AI mendeteksi tekanan beli institusional yang mulai menguat."})
+        bullish_insights.append({"title": "Accumulation Zone", "desc": "Pasar Oversold (RSI < 30). Tekanan beli institusional mulai menguat."})
     else:
-        insights.append({"title": "Trend Stability", "desc": "RSI di area netral. Tren harga saat ini didukung oleh aliran dana yang stabil."})
+        neutral_insights.append({"title": "Trend Stability", "desc": "RSI di area netral. Tren harga saat ini didukung aliran dana stabil."})
 
     # 2. Macro & USD Influence
     dxy = latest_row['DXY'].iloc[0] if 'DXY' in latest_row.columns else 100
     if dxy > 104:
-        insights.append({"title": "USD Headwinds", "desc": "Penguatan Dollar (DXY > 104) menekan harga emas. Korelasi negatif terpantau sangat kuat."})
+        bearish_insights.append({"title": "USD Headwinds", "desc": "Penguatan Dollar (DXY > 104) menekan harga emas."})
     elif dxy < 100:
-        insights.append({"title": "USD Tailwind", "desc": "Dollar yang melemah memberikan dukungan tambahan bagi harga emas di pasar global."})
+        bullish_insights.append({"title": "USD Tailwind", "desc": "Pelemahan Dollar memberikan dukungan bagi harga emas."})
 
-    # 3. Market Sentiment & Fear
+    # 3. Market Sentiment & Fear (VIX)
     vix = latest_row['VIX_Lag1'].iloc[0] if 'VIX_Lag1' in latest_row.columns else 15
     if vix > 25:
-        insights.append({"title": "Fear Premium", "desc": "VIX menunjukkan kecemasan di pasar saham, meningkatkan daya tarik emas sebagai safe-haven."})
+        bullish_insights.append({"title": "Fear Premium", "desc": "VIX tinggi meningkatkan daya tarik emas sebagai safe-haven."})
     elif vix < 15:
-        insights.append({"title": "Risk-On Bias", "desc": "Rendahnya volatilitas pasar (VIX < 15) mendorong aliran dana keluar dari emas ke aset berisiko."})
+        bearish_insights.append({"title": "Risk-On Bias", "desc": "VIX rendah mendorong aliran dana ke aset berisiko, bukan emas."})
 
     # 4. Bond Yields
     yields = latest_row['US10Y_Lag1'].iloc[0] if 'US10Y_Lag1' in latest_row.columns else 4.0
     if yields > 4.5:
-        insights.append({"title": "Yield Pressure", "desc": "Kenaikan imbal hasil obligasi AS (US10Y > 4.5%) mengurangi daya tarik emas yang tidak berbunga."})
+        bearish_insights.append({"title": "Yield Pressure", "desc": "Imbal hasil obligasi AS tinggi mengurangi daya tarik emas."})
+    elif yields < 3.5:
+        bullish_insights.append({"title": "Yield Support", "desc": "Imbal hasil obligasi rendah mendukung harga emas."})
 
     # 5. News & Sentiment
     if sentiment < -0.2:
-        insights.append({"title": "Extreme Pessimism", "desc": "Sentimen berita sangat negatif. Berpotensi terjadi 'Bullish Surprise' jika ada perubahan narasi."})
+        bullish_insights.append({"title": "Contrarian Signal", "desc": "Sentimen negatif ekstrem. Potensi 'Bullish Surprise' jika narasi berubah."})
     elif sentiment > 0.2:
-        insights.append({"title": "Euphoric Watch", "desc": "Berita sangat positif. Waspadai aksi 'sell on news' oleh pelaku pasar besar."})
+        bearish_insights.append({"title": "Euphoric Watch", "desc": "Sentimen sangat positif. Waspadai aksi 'sell on news'."})
 
     # 6. Volatility & Price Action
     if abs(daily_change_pct) > 1.5:
-        insights.append({"title": "High Volatility", "desc": "Pergerakan harga harian sangat tajam (>1.5%). Risiko pembalikan mendadak saat ini tinggi."})
+        neutral_insights.append({"title": "High Volatility", "desc": f"Pergerakan harga harian sangat tajam ({daily_change_pct:+.1f}%)."})
 
-    # Always add a base context item
-    insights.append({"title": "The Fed Policy", "desc": "Ekspektasi suku bunga The Fed tetap menjadi jangkar utama pergerakan harga emas."})
-    insights.append({"title": "Geopolitical Hedge", "desc": "Ketidakpastian politik global terus menjaga permintaan emas sebagai pelindung nilai (hedge)."})
-
-    # Shuffle for dynamic feel and return top 3
-    random.shuffle(insights)
+    # Prioritize insights based on conf_direction
+    if conf_direction == "UP":
+        # For bullish prediction: show bullish supporting evidence first
+        prioritized = bullish_insights + neutral_insights + bearish_insights
+    else:
+        # For bearish prediction: show bearish supporting evidence first
+        prioritized = bearish_insights + neutral_insights + bullish_insights
+    
+    # Add up to 2 supporting insights
+    for insight in prioritized[:2]:
+        insights.append(insight)
+    
+    # If we still need more, add a contextual fallback
+    if len(insights) < 3:
+        insights.append({"title": "Fed Policy Watch", "desc": "Kebijakan suku bunga The Fed tetap menjadi faktor kunci pergerakan emas."})
+    
     return insights[:3]
 
 
@@ -221,6 +273,14 @@ def get_prediction():
 
     physical_price = loader.fetch_antam_price(current_spot_price=price_gram_idr)
 
+    # Generate aligned insights using model prediction
+    market_insights = generate_market_insights(
+        df, sentiment, current_usd, daily_change_pct, latest_row,
+        conf_direction=conf_direction,
+        conf_score=conf_score,
+        recommendation=rec
+    )
+
     result = {
         "current_price_usd": round(current_usd, 2),
         "predicted_price_usd": round(predicted_usd, 2),
@@ -239,6 +299,7 @@ def get_prediction():
         "rsi": round(rsi_val, 2),
         "action_date": (pd.Timestamp.now() + pd.Timedelta(days=1)).strftime('%Y-%m-%d'),
         "top_headlines": headlines,
+        "market_insights": market_insights,
         "dynamic_risks": []
     }
 

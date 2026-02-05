@@ -445,21 +445,39 @@ function updateSentimentCard(data) {
     }
     document.getElementById('sentiment_avg').textContent = `Avg Score: ${data.sentiment_score}`;
 
-    // Live Commentary Update (Rolling News / Carousel)
+    // Live Commentary Update (AI Insights + Rolling News)
     const commBox = document.getElementById('live_commentary_content');
     if (commBox) {
-        let headlines = [];
+        let items = [];
 
-        // 1. Extract headlines or use fallback
-        if (data.top_headlines && data.top_headlines.length > 0) {
-            headlines = data.top_headlines.slice(0, 10); // Take top 10
-        } else {
-            // Fallback (Empty, do not generate synthetic AI text)
-            headlines = ["Monitoring global market news..."];
+        // 1. Add AI-aligned market insights first (priority)
+        if (data.market_insights && data.market_insights.length > 0) {
+            data.market_insights.forEach(insight => {
+                items.push({
+                    type: 'insight',
+                    title: insight.title,
+                    desc: insight.desc
+                });
+            });
         }
 
-        // 2. Check if data changed significantly (simple JSON compare, no btoa)
-        const currentHash = JSON.stringify(headlines);
+        // 2. Add news headlines after insights
+        if (data.top_headlines && data.top_headlines.length > 0) {
+            data.top_headlines.slice(0, 5).forEach(headline => {
+                items.push({
+                    type: 'news',
+                    text: headline
+                });
+            });
+        }
+
+        // Fallback if no items
+        if (items.length === 0) {
+            items.push({ type: 'news', text: 'Monitoring global market news...' });
+        }
+
+        // 3. Check if data changed significantly
+        const currentHash = JSON.stringify(items);
         if (commBox.dataset.lastHash !== currentHash) {
             commBox.dataset.lastHash = currentHash;
 
@@ -473,14 +491,24 @@ function updateSentimentCard(data) {
 
                 setTimeout(() => {
                     // Change text
-                    const item = headlines[currentIndex];
-                    commBox.innerHTML = `<div class="news-item">> ${item}</div>`;
+                    const item = items[currentIndex];
+                    if (item.type === 'insight') {
+                        // AI Insight styling - more prominent
+                        commBox.innerHTML = `
+                            <div class="insight-item" style="border-left: 3px solid var(--terminal-gold); padding-left: 10px;">
+                                <strong style="color: var(--terminal-gold);">${item.title}</strong><br>
+                                <span style="opacity: 0.85;">${item.desc}</span>
+                            </div>`;
+                    } else {
+                        // News headline styling
+                        commBox.innerHTML = `<div class="news-item">> ${item.text}</div>`;
+                    }
 
                     // Fade in
                     commBox.style.opacity = '1';
 
                     // Next index
-                    currentIndex = (currentIndex + 1) % headlines.length;
+                    currentIndex = (currentIndex + 1) % items.length;
                 }, 500); // 0.5s fade out
             };
 
@@ -488,9 +516,9 @@ function updateSentimentCard(data) {
             commBox.style.transition = 'opacity 0.5s ease';
             updateHeadline();
 
-            // Start rotation (every 4 seconds)
-            if (headlines.length > 1) {
-                window.newsInterval = setInterval(updateHeadline, 4000);
+            // Start rotation (every 5 seconds for insights, 4 for news)
+            if (items.length > 1) {
+                window.newsInterval = setInterval(updateHeadline, 5000);
             }
         }
     }
