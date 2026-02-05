@@ -83,13 +83,7 @@ def train_pipeline(df: pd.DataFrame) -> Tuple[Any, float]:
     df_clean['Target_Return'] = df_clean['Gold_Returns'].shift(-1)
     df_train = df_clean.dropna() # Full history for maximum generalization
 
-    features = [
-        'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
-        'Stoch', 'WilliamsR', 'CCI', 'ATR', 'Return_Lag1', 
-        'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5',
-        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
-    ]
+    features = config.MODEL_FEATURES
 
     valid_features = [f for f in features if f in df_train.columns]
     print(f"DEBUG: Training features ({len(valid_features)}): {valid_features}")
@@ -194,13 +188,7 @@ def run_prediction(model: Any, df: pd.DataFrame, mae: float) -> Dict[str, Any]:
     Returns:
         Dictionary with prediction results.
     """
-    features = [
-        'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
-        'Stoch', 'WilliamsR', 'CCI', 'ATR', 'Return_Lag1', 
-        'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5',
-        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
-    ]
+    features = config.MODEL_FEATURES
     # Standardize feature vector (Force 27 features, fill missing with 0.0)
     latest_features = df.reindex(columns=features).iloc[[-1]].copy().fillna(0.0)
     predicted_return = model.predict(latest_features)[0]

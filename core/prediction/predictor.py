@@ -168,9 +168,7 @@ def recursive_forecast(
     current_sim_df = historical_df.copy() if historical_df is not None else last_known_features.copy()
     current_sim_price = current_price_usd
 
-    feature_cols = [
-        'USD_IDR', 'DXY', 'Oil', 'RSI', 'MACD', 'Return_Lag1', 'Gold_Silver_Ratio', 'VIX_Lag1'
-    ]
+    feature_cols = last_known_features.columns.tolist()
 
     for i in range(1, days + 1):
         next_features = current_sim_df.reindex(columns=feature_cols).iloc[[-1]].fillna(0.0)

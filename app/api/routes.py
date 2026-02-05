@@ -12,11 +12,14 @@ import pandas as pd
 import scipy.stats as stats
 from flask import current_app, jsonify, request
 
+import logging
 import config
 from app.api import api_bp
 from core.data import loader, signal_logger
 from core.features import engineering
 from core.prediction import predictor
+
+logger = logging.getLogger(__name__)
 
 
 @api_bp.route("/history")
@@ -131,13 +134,7 @@ def get_prediction():
     sentiment, headlines, sentiment_breakdown = loader.fetch_news_sentiment()
     df['Sentiment'] = sentiment
 
-    features = [
-        'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
-        'Stoch', 'WilliamsR', 'CCI', 'ATR', 'Return_Lag1', 
-        'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5',
-        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
-    ]
+    features = config.MODEL_FEATURES
     available_features = [f for f in features if f in df.columns]
 
     live_gold = loader.fetch_live_data('GC=F')
@@ -191,7 +188,7 @@ def get_prediction():
 
     predicted_usd = current_usd * (1 + predicted_return)
 
-    print(f"DEBUG v5: Ret={predicted_return*100:.2f}%, Dir={conf_direction}, Conf={conf_score}%")
+    # print(f"DEBUG v5: Ret={predicted_return*100:.2f}%, Dir={conf_direction}, Conf={conf_score}%")
 
     # Generate signal
     rsi_val = latest_row['RSI'].iloc[0] if 'RSI' in latest_row.columns else 50.0
@@ -353,13 +350,7 @@ def get_forecast():
     sentiment, _, _ = loader.fetch_news_sentiment()
     df['Sentiment'] = sentiment
 
-    features = [
-        'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
-        'Stoch', 'WilliamsR', 'CCI', 'ATR', 'Return_Lag1', 
-        'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5',
-        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
-    ]
+    features = config.MODEL_FEATURES
     available_features = [f for f in features if f in df.columns]
 
     live_gold = loader.fetch_live_data('GC=F')
@@ -564,7 +555,7 @@ def retrain_model():
         training_state['message'] = 'Starting training process...'
         training_state['timestamp'] = int(time.time())
 
-        print("[Manual] Starting model training...")
+        logger.info("Manual model training requested.")
         try:
             training_state['message'] = 'Running training script...'
             script_path = os.path.join(config.BASE_DIR, "bin", "run_training.py")
@@ -575,17 +566,17 @@ def retrain_model():
                 timeout=600
             )
             if result.returncode == 0:
-                print("[Manual] Training success!")
+                logger.info("Manual training completed successfully.")
                 invalidate_cache()
                 training_state['status'] = 'done'
                 training_state['message'] = 'Training completed successfully.'
             else:
-                print(f"[Manual] Training failed: {result.stderr[-200:]}")
+                logger.error(f"Manual training failed: {result.stderr[-200:]}")
                 training_state['status'] = 'error'
                 training_state['message'] = f"Training failed: {result.stderr[-50:]}"
 
         except Exception as e:
-            print(f"[Manual] Error: {e}")
+            logger.error(f"Manual training technical error: {e}")
             training_state['status'] = 'error'
             training_state['message'] = str(e)
 

@@ -12,11 +12,20 @@ import threading
 import subprocess
 from typing import Optional
 
+import logging
 from flask import Flask
 from flask_cors import CORS
 
 import config
 from core.prediction import predictor
+
+# Configure Logging
+logging.basicConfig(
+    level=logging.INFO if not config.DEBUG else logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
 
 
 # Global model cache
@@ -97,14 +106,14 @@ def get_model(retry: bool = True) -> Optional[dict]:
                 if clf:
                     ensemble['clf'] = clf
                 _trained_model = ensemble
-                print("Model ensemble loaded successfully.")
+                logger.info("Model ensemble loaded successfully.")
             else:
                 raise ValueError("Could not load required models.")
 
         except Exception as e:
-            print(f"Model load error: {e}")
+            logger.error(f"Model load error: {e}")
             if retry:
-                print("Attempting emergency retrain...")
+                logger.info("Attempting emergency retrain...")
                 try:
                     script_path = os.path.join(config.BASE_DIR, "bin", "run_training.py")
                     subprocess.run(
@@ -114,7 +123,7 @@ def get_model(retry: bool = True) -> Optional[dict]:
                     )
                     return get_model(retry=False)
                 except Exception as e2:
-                    print(f"Emergency retrain failed: {e2}")
+                    logger.error(f"Emergency retrain failed: {e2}")
 
     return _trained_model
 
@@ -135,7 +144,7 @@ def _run_periodic_update() -> None:
         if wait_time > 0:
             time.sleep(wait_time)
 
-        print("\n[Scheduler] Starting periodic update...")
+        logger.info("Starting periodic model update...")
         try:
             script_path = os.path.join(config.BASE_DIR, "bin", "run_training.py")
             result = subprocess.run(
@@ -146,13 +155,13 @@ def _run_periodic_update() -> None:
             )
 
             if result.returncode == 0:
-                print("[Scheduler] Update completed.")
+                logger.info("Periodic update completed.")
                 invalidate_model_cache()
             else:
-                print(f"[Scheduler] Update failed: {result.stderr[-200:]}")
+                logger.warning(f"Periodic update failed: {result.stderr[-200:]}")
 
         except Exception as e:
-            print(f"[Scheduler] Error: {e}")
+            logger.error(f"Scheduler error: {e}")
 
         # Schedule next update
         NEXT_UPDATE_TIME = time.time() + UPDATE_INTERVAL
@@ -167,7 +176,7 @@ def _start_scheduler() -> None:
     thread = threading.Thread(target=_run_periodic_update, daemon=True)
     thread.start()
     _scheduler_started = True
-    print("[Scheduler] Background service started.")
+    logger.info("Background update service started.")
 
 
 def create_app() -> Flask:
@@ -213,7 +222,7 @@ def run_app() -> None:
 
     # Cold start check
     if not os.path.exists(config.MODEL_MED_PATH):
-        print("\n[Cold Start] Model not found. Initializing training...")
+        logger.info("Model not found. Initializing cold-start training...")
         try:
             script_path = os.path.join(config.BASE_DIR, "bin", "run_training.py")
             subprocess.run(
@@ -221,7 +230,7 @@ def run_app() -> None:
                 check=True
             )
         except Exception as e:
-            print(f"Cold start training failed: {e}")
+            logger.error(f"Cold start training failed: {e}")
 
     app = create_app()
     app.run(debug=config.DEBUG, host=config.HOST, port=config.PORT)

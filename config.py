@@ -34,3 +34,11 @@ HOLD_THRESHOLD = 0.005  # 0.5% threshold for hold signal
 HOST = "0.0.0.0"  # Listen on all interfaces
 PORT = 5000
 DEBUG = False
+# AI Model Features
+MODEL_FEATURES = [
+    'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
+    'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
+    'Stoch', 'WilliamsR', 'CCI', 'ATR', 'Return_Lag1', 
+    'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5',
+    'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
+]

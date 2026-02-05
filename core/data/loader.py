@@ -18,8 +18,11 @@ import requests
 import yfinance as yf
 from bs4 import BeautifulSoup
 from textblob import TextBlob
+import logging
 
 import config
+
+logger = logging.getLogger(__name__)
 
 
 def fetch_antam_price(
@@ -113,7 +116,7 @@ def fetch_market_data(period: str = "max") -> pd.DataFrame:
     Returns:
         Combined dataframe of all tickers, or empty DataFrame if failed.
     """
-    print("Fetching market data...")
+    logger.info("Fetching global market data...")
 
     tickers = {
         'Gold': 'GC=F',
@@ -143,7 +146,7 @@ def fetch_market_data(period: str = "max") -> pd.DataFrame:
             hist = ticker.history(period=p)
 
             if hist.empty:
-                print(f"Warning: No data for {name} ({ticker_symbol})")
+                logger.warning(f"No data for {name} ({ticker_symbol})")
                 continue
 
             df_ticker = hist[['Close']].rename(columns={'Close': name})
@@ -154,10 +157,10 @@ def fetch_market_data(period: str = "max") -> pd.DataFrame:
             data_frames.append(df_ticker)
 
         except Exception as e:
-            print(f"Error fetching {name}: {e}")
+            logger.error(f"Error fetching {name}: {e}")
 
     if not data_frames:
-        print("Error: No market data could be fetched.")
+        logger.error("No market data could be fetched.")
         return pd.DataFrame()
 
     try:
@@ -165,7 +168,7 @@ def fetch_market_data(period: str = "max") -> pd.DataFrame:
         market_data = market_data.ffill().dropna()
         return market_data
     except Exception as e:
-        print(f"Error combining market data: {e}")
+        logger.error(f"Error combining market data: {e}")
         return pd.DataFrame()
 
 
@@ -186,7 +189,7 @@ def update_local_database(
     if csv_path is None:
         csv_path = config.CSV_PATH
 
-    print("\n[Database] Checking local history...")
+    logger.info("Checking local database status...")
 
     full_data = pd.DataFrame()
 
@@ -194,7 +197,7 @@ def update_local_database(
         try:
             full_data = pd.read_csv(csv_path, index_col='Date', parse_dates=True)
             last_date = full_data.index.max()
-            print(f"  Found database. Last date: {last_date.date()}")
+            logger.debug(f"Database found. Last entry: {last_date.date()}")
 
             today = pd.Timestamp.now().normalize()
             if not force and last_date >= (today - pd.Timedelta(days=1)):
@@ -329,7 +332,7 @@ def fetch_news_sentiment(
                 cache_time = cache.get('timestamp', 0)
                 if (time.time() - cache_time) < cache_expiry:
                     age = int(time.time() - cache_time)
-                    print(f"  Using cached sentiment (Age: {age}s)")
+                    logger.debug(f"Sentiment cache hit (Age: {age}s)")
                     return (
                         cache['avg_sentiment'],
                         cache['headlines'],
@@ -338,7 +341,7 @@ def fetch_news_sentiment(
         except Exception as e:
             print(f"  Cache read failed: {e}")
 
-    print("\n[Sentiment] Fetching news insights...")
+    logger.info("Fetching fresh news sentiment...")
 
     queries = [
         # International / US
@@ -389,7 +392,7 @@ def fetch_news_sentiment(
 
     # Fetch local Indonesian news
     try:
-        print("  Fetching local news (CNBC Indonesia)...")
+        logger.debug("Fetching CNBC Indonesia news...")
         id_news_url = "https://www.cnbcindonesia.com/market/emas"
         res = requests.get(id_news_url, timeout=5)
         if res.status_code == 200:
@@ -415,7 +418,7 @@ def fetch_news_sentiment(
     headlines = []
 
     if unique_articles:
-        print(f"  Analyzing {len(unique_articles)} articles...")
+        logger.info(f"Analyzing {len(unique_articles)} articles for sentiment...")
         try:
             if os.environ.get('USE_ADVANCED_NLP', 'true').lower() == 'true':
                 from transformers import pipeline
@@ -440,7 +443,7 @@ def fetch_news_sentiment(
                 avg_sentiment = sum(scores) / len(scores)
 
         except Exception as e:
-            print(f"FinBERT unavailable ({e}), using TextBlob...")
+            logger.warning(f"FinBERT unavailable, falling back to TextBlob: {e}")
             scores = []
             for article in unique_articles:
                 text = article['title']
@@ -465,7 +468,7 @@ def fetch_news_sentiment(
             if scores:
                 avg_sentiment = sum(scores) / len(scores)
 
-        print(f"Analyzed {len(unique_articles)} items. Avg: {avg_sentiment:.4f}")
+        logger.info(f"Sentiment analysis complete. Avg: {avg_sentiment:.4f}")
         
         # Randomize the headlines so we get a mix of topics, not just the first query
         import random
@@ -497,12 +500,13 @@ def fetch_news_sentiment(
 def fetch_live_data(ticker: str = 'GC=F') -> Optional[Dict[str, float]]:
     """Fetch the latest available intraday price."""
     try:
-        print(f"DEBUG: Fetching live data for {ticker}...")
+        # print(f"DEBUG: Fetching live data for {ticker}...")
         ticker_obj = yf.Ticker(ticker)
         df = ticker_obj.history(period="1d", interval="1m")
-        print(f"DEBUG: {ticker} df shape: {df.shape}")
+        # print(f"DEBUG: {ticker} df shape: {df.shape}")
         if not df.empty:
-            print(f"DEBUG: {ticker} last row: {df.tail(1)}")
+             pass 
+             # print(f"DEBUG: {ticker} last row: {df.tail(1)}")
 
         if df.empty:
             df = ticker_obj.history(period="5d")
@@ -521,7 +525,7 @@ def fetch_live_data(ticker: str = 'GC=F') -> Optional[Dict[str, float]]:
         return {'price': float(latest_price), 'change_pct': float(change_pct)}
 
     except Exception as e:
-        print(f"Error fetching live data for {ticker}: {e}")
+        logger.error(f"Error fetching live data for {ticker}: {e}")
         return None
 
 
