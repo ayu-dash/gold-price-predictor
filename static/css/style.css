@@ -682,8 +682,8 @@ header h1 {
 
 /* Portfolio Card Density */
 .portfolio-card .portfolio-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 15px;
     margin: 15px 0;
     padding: 15px;
@@ -1099,4 +1099,110 @@ header h1 {
     .card {
         padding: 10px !important;
     }
+}
+
+/* Live Market Commentary */
+.commentary-box {
+    margin-top: 15px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+}
+
+.commentary-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 8px;
+}
+
+.pulse-dot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--red);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--red);
+    animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+    0% {
+        transform: scale(0.95);
+        opacity: 0.7;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(0.95);
+        opacity: 0.7;
+    }
+}
+
+/* 3D Rolling Commentary */
+.commentary-viewport {
+    perspective: 800px;
+    height: 40px;
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+}
+
+.tumble-card {
+    position: absolute;
+    width: 100%;
+    top: 0;
+    left: 0;
+    line-height: 1.5;
+    backface-visibility: hidden;
+    transform-origin: center center -20px;
+}
+
+.tumble-out {
+    animation: tumbleOut 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.tumble-in {
+    animation: tumbleIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes tumbleOut {
+    0% {
+        transform: rotateX(0deg);
+        opacity: 1;
+    }
+
+    100% {
+        transform: rotateX(90deg);
+        opacity: 0;
+    }
+}
+
+@keyframes tumbleIn {
+    0% {
+        transform: rotateX(-90deg);
+        opacity: 0;
+    }
+
+    100% {
+        transform: rotateX(0deg);
+        opacity: 1;
+    }
+}
+
+.commentary-content {
+    line-height: normal;
+    max-height: none;
+    overflow: visible;
 }

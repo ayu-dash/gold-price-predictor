@@ -441,6 +441,56 @@ function updateSentimentCard(data) {
         document.getElementById('bear_ratio').textContent = bearPct.toFixed(1) + '%';
     }
     document.getElementById('sentiment_avg').textContent = `Avg Score: ${data.sentiment_score}`;
+
+    // Live Commentary Update (Rolling News / Carousel)
+    const commBox = document.getElementById('live_commentary_content');
+    if (commBox) {
+        let headlines = [];
+
+        // 1. Extract headlines or use fallback
+        if (data.top_headlines && data.top_headlines.length > 0) {
+            headlines = data.top_headlines.slice(0, 10); // Take top 10
+        } else {
+            // Fallback (Empty, do not generate synthetic AI text)
+            headlines = ["Monitoring global market news..."];
+        }
+
+        // 2. Check if data changed significantly (simple hash check)
+        const currentHash = btoa(JSON.stringify(headlines));
+        if (commBox.dataset.lastHash !== currentHash) {
+            commBox.dataset.lastHash = currentHash;
+
+            // Stop existing interval if any
+            if (window.newsInterval) clearInterval(window.newsInterval);
+
+            let currentIndex = 0;
+            const updateHeadline = () => {
+                // Fade out
+                commBox.style.opacity = '0';
+
+                setTimeout(() => {
+                    // Change text
+                    const item = headlines[currentIndex];
+                    commBox.innerHTML = `<div class="news-item">> ${item}</div>`;
+
+                    // Fade in
+                    commBox.style.opacity = '1';
+
+                    // Next index
+                    currentIndex = (currentIndex + 1) % headlines.length;
+                }, 500); // 0.5s fade out
+            };
+
+            // Initial render
+            commBox.style.transition = 'opacity 0.5s ease';
+            updateHeadline();
+
+            // Start rotation (every 4 seconds)
+            if (headlines.length > 1) {
+                window.newsInterval = setInterval(updateHeadline, 4000);
+            }
+        }
+    }
 }
 
 // ----------------------------------------

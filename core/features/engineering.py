@@ -29,7 +29,6 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['MACD'] = ta.trend.macd(df['Gold'])
     df['MACD_Signal'] = ta.trend.macd_signal(df['Gold'])
 
-    # Advanced Momentum items
     high = df['Gold']
     low = df['Gold']
     close = df['Gold']
@@ -44,7 +43,6 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     df['Gold_Returns'] = df['Gold'].pct_change()
     
-    # Standardize 'Returns' for compatibility with various older scripts
     df['Returns'] = df['Gold_Returns']
 
     if 'VIX' in df.columns:
@@ -59,7 +57,6 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
         df['US10Y_Diff'] = df['US10Y'].diff()
         df['US10Y_Lag1'] = df['US10Y_Diff'].shift(1)
 
-    # Inter-market alignments
     if 'Silver' in df.columns and (df['Silver'] > 0).all():
         df['Gold_Silver_Ratio'] = df['Gold'] / df['Silver']
     
@@ -69,13 +66,11 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     if 'SP500' in df.columns:
         df['SP500_Ret_Lag1'] = df['SP500'].pct_change().shift(1)
 
-    # Add Lagged Features for classification
     df['Return_Lag1'] = df['Gold_Returns'].shift(1)
     df['Return_Lag2'] = df['Gold_Returns'].shift(2)
     df['Return_Lag3'] = df['Gold_Returns'].shift(3)
     df['RSI_Lag1'] = df['RSI'].shift(1)
     
-    # Volatility / Momentum
     df['Volatility_5'] = df['Gold_Returns'].rolling(window=5).std()
     df['Momentum_5'] = df['Gold'].pct_change(periods=5)
 

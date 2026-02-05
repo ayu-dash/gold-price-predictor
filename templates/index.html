@@ -32,9 +32,9 @@
     <!-- Signal Card -->
     <div class="card signal-card glass">
         <div class="card-header">
-            AI Trade Insight (Forecast)
+            Trade Insight (Forecast)
             <div style="display: flex; align-items: center; gap: 8px;">
-                <span id="signal_countdown" class="countdown-timer" title="Next AI Intelligence Refresh">00:00</span>
+                <span id="signal_countdown" class="countdown-timer" title="Next Intelligence Refresh">00:00</span>
                 <div id="signal_light" class="status-light"></div>
             </div>
         </div>
@@ -64,6 +64,16 @@
             <span>Bearish: <span id="bear_ratio" class="text-red">--%</span></span>
         </div>
         <div class="sentiment-score" id="sentiment_avg">Net Score: 0.00</div>
+
+        <!-- Live Commentary Section -->
+        <div class="commentary-box" id="live_commentary_box">
+            <div class="commentary-header">
+                <span class="pulse-dot"></span> Live Market Commentary
+            </div>
+            <div id="live_commentary_content" class="commentary-content">
+                Waiting for insights...
+            </div>
+        </div>
     </div>
 
     <!-- Spread Radar Card -->
@@ -159,7 +169,7 @@
     <!-- Multi-day Forecast -->
     <div class="card forecast-card glass grid-span-full">
         <div class="card-header">
-            <span>Realtime AI Forecast</span>
+            <span>Realtime Forecast</span>
             <div class="forecast-input">
                 <label>Days:</label>
                 <input type="number" id="forecast_days" value="7" min="2" max="100">

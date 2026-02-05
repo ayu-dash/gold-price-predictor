@@ -341,16 +341,23 @@ def fetch_news_sentiment(
     print("\n[Sentiment] Fetching news insights...")
 
     queries = [
+        # International / US
         "Gold Price Forecast", "US Inflation Data", "Federal Reserve Rate Decisions",
         "Geopolitical Conflict Middle East", "China Gold Demand",
         "US Dollar Index Analysis", "Global Recession Risks", "Central Bank Gold Buying",
+        "XAUUSD Technical Analysis", "Silver Price Outlook", "Oil Price Impact on Gold",
+        "FOMC Meeting Minutes", "US Treasury Yields Impact",
+        
+        # Indonesia / Local
         "Harga Emas Antam Hari Ini", "Prediksi Harga Emas Indonesia",
         "Kurs Rupiah terhadap Dollar", "Kebijakan Suku Bunga Bank Indonesia",
-        "Investasi Emas di Indonesia", "Inflasi Indonesia Terkini"
+        "Investasi Emas di Indonesia", "Inflasi Indonesia Terkini",
+        "Harga Emas Pegadaian", "Prospek Ekonomi Indonesia", "IHSG Terkini",
+        "Cadangan Devisa Indonesia", "Ekspor Impor Indonesia"
     ]
 
     all_articles = []
-    id_keywords = ["Indonesia", "Antam", "Rupiah", "Bank Indonesia"]
+    id_keywords = ["Indonesia", "Antam", "Rupiah", "Bank Indonesia", "Pegadaian", "IHSG"]
 
     for q in queries:
         try:
@@ -366,7 +373,8 @@ def fetch_news_sentiment(
             )
 
             feed = feedparser.parse(rss_url)
-            for entry in feed.entries[:10]:
+            # Increased limit to 15 to get more variety
+            for entry in feed.entries[:15]:
                 dt = None
                 if hasattr(entry, 'published_parsed'):
                     dt = datetime(*entry.published_parsed[:6])
@@ -387,7 +395,8 @@ def fetch_news_sentiment(
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'html.parser')
             articles = soup.select('.list article h2')
-            for art in articles[:10]:
+            # Increased limit
+            for art in articles[:15]:
                 title = art.get_text(strip=True)
                 all_articles.append({'title': title, 'source': 'CNBC ID'})
     except Exception as e:
@@ -417,6 +426,7 @@ def fetch_news_sentiment(
             scores = []
             for article in unique_articles:
                 try:
+                    # Truncate to 512 tokens approx
                     result = classifier(article['title'][:512])[0]
                     label = result['label']
                     score = result['score']
@@ -436,11 +446,12 @@ def fetch_news_sentiment(
                 text = article['title']
                 blob = TextBlob(text)
                 score = blob.sentiment.polarity
-
+                
+                # Custom keywords for gold context
                 text_lower = text.lower()
-                if any(k in text_lower for k in ['recession', 'crash', 'plunge', 'anjlok', 'jatuh']):
+                if any(k in text_lower for k in ['recession', 'crash', 'plunge', 'anjlok', 'jatuh', 'turun']):
                     score -= 0.5
-                if any(k in text_lower for k in ['soar', 'record', 'rally', 'melejit', 'rekor']):
+                if any(k in text_lower for k in ['soar', 'record', 'rally', 'melejit', 'rekor', 'naik', 'tumbuh']):
                     score += 0.5
 
                 scores.append(score)
@@ -455,7 +466,15 @@ def fetch_news_sentiment(
                 avg_sentiment = sum(scores) / len(scores)
 
         print(f"Analyzed {len(unique_articles)} items. Avg: {avg_sentiment:.4f}")
-        headlines = [a['title'] for a in unique_articles[:5]]
+        
+        # Randomize the headlines so we get a mix of topics, not just the first query
+        import random
+        # Shuffle a copy to avoid affecting anything else if needed
+        shuffled_articles = unique_articles.copy()
+        random.shuffle(shuffled_articles)
+        
+        # Take top 10 for display
+        headlines = [a['title'] for a in shuffled_articles[:10]]
 
     # Save cache
     try:

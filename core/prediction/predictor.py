@@ -29,7 +29,6 @@ from core.features import engineering
 
 def train_model(X: pd.DataFrame, y: pd.Series, quantile: Optional[float] = None):
     """Train a HistGradientBoostingRegressor with optimized v5 Sandbox parameters."""
-    # Use all data for the regressor to improve distribution coverage (MAE fix)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, shuffle=False)
 
     loss_type = 'quantile' if quantile is not None else 'squared_error'
@@ -62,8 +61,6 @@ def train_neural_network(X: pd.DataFrame, y: pd.Series) -> Tuple[Any, float, flo
 
 def train_classifier(X: pd.DataFrame, y: pd.Series) -> Tuple[Any, float, float, float]:
     """Train the 'Deep Sniper' Triple Ensemble (RF + HGB + ET)."""
-    # X here should already be pre-filtered for "Significant Moves" (>0.15%)
-    # but the predictor handles raw X/y, so we trust the caller has filtered or we fit on all.
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, shuffle=False)
 
     rf = RandomForestClassifier(n_estimators=300, max_depth=12, random_state=42)
@@ -78,8 +75,6 @@ def train_classifier(X: pd.DataFrame, y: pd.Series) -> Tuple[Any, float, float, 
 
     probs = model.predict_proba(X_test)[:, 1]
     
-    # Sniper Logic: Evaluate at high-precision threshold (Target: 100% Precision)
-    # Production uses 0.70 as a default baseline if sniper barrier isn't passed.
     threshold = 0.70
     preds = (probs > threshold).astype(int)
     
@@ -197,7 +192,7 @@ def recursive_forecast(
             pred_low = pred_ret - 0.012
             pred_high = pred_ret + 0.012
 
-        volatility = 0.01  # Default 1%
+        volatility = 0.01
         if historical_df is not None and len(historical_df) > 20:
              if 'Gold' in historical_df.columns:
                  recent_closes = historical_df['Gold'].tail(20)
@@ -222,22 +217,6 @@ def recursive_forecast(
         current_sim_df = pd.concat([current_sim_df, new_row])
         
         current_sim_df = engineering.add_technical_indicators(current_sim_df)
-
-        forecasts.append({
-            'Day': i, 'Date': new_row.index[0].strftime('%Y-%m-%d'),
-            'Price_USD': current_sim_price, 'Price_IDR': current_sim_price_idr,
-            'Price_Min_IDR': current_sim_price * (1 + pred_low) * current_rate_idr,
-            'Price_Max_IDR': current_sim_price * (1 + pred_high) * current_rate_idr,
-            'Return_Pct': round(pred_ret * 100, 2)
-        })
-
-    return forecasts
-        current_sim_df = engineering.add_technical_indicators(current_sim_df)
-        
-        # Manually update lags for the new row since shift() needs history
-        # (add_technical_indicators already does shift/rolling if history is sufficient, 
-        # but let's ensure the last row is valid)
-        pass
 
         forecasts.append({
             'Day': i, 'Date': new_row.index[0].strftime('%Y-%m-%d'),
