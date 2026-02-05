@@ -14,5 +14,5 @@ app = create_app()
 
 _start_scheduler()
 
-if __name__ == "__main__":k
+if __name__ == "__main__":
     app.run()
