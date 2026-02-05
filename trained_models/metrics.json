@@ -14,18 +14,18 @@
             "rmse": 0.020168
         },
         "classifier": {
-            "accuracy": 0.394,
-            "precision": 0.0,
-            "recall": 0.0,
-            "f1": 0.0
+            "accuracy": 0.4548,
+            "precision": 0.75,
+            "recall": 0.1639,
+            "f1": 0.2691
         },
         "neural_network": {
-            "mae": 0.009635,
-            "rmse": 0.013444
+            "mae": 0.011428,
+            "rmse": 0.015837
         }
     },
-    "train_samples": 3528,
-    "test_samples": 662,
+    "train_samples": 2000,
+    "test_samples": 250,
     "features_used": [
         "USD_IDR",
         "DXY",

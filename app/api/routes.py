@@ -7,6 +7,7 @@ import threading
 import subprocess
 from datetime import datetime
 
+import random
 import pandas as pd
 import scipy.stats as stats
 from flask import current_app, jsonify, request
@@ -63,6 +64,57 @@ def force_db_update():
         return jsonify({"status": "success", "message": "Database sync triggered"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def generate_market_insights(df, sentiment, current_usd, daily_change_pct, latest_row):
+    """Generate professional dynamic insights based on latest data."""
+    insights = []
+    
+    # 1. Technical Indicators
+    rsi = latest_row['RSI'].iloc[0] if 'RSI' in latest_row.columns else 50
+    if rsi > 70:
+        insights.append({"title": "Profit Taking", "desc": "RSI di level Overbought (>70). Risiko koreksi teknikal meningkat karena aksi ambil untung."})
+    elif rsi < 30:
+        insights.append({"title": "Accumulation Zone", "desc": "Pasar sudah Oversold (RSI < 30). AI mendeteksi tekanan beli institusional yang mulai menguat."})
+    else:
+        insights.append({"title": "Trend Stability", "desc": "RSI di area netral. Tren harga saat ini didukung oleh aliran dana yang stabil."})
+
+    # 2. Macro & USD Influence
+    dxy = latest_row['DXY'].iloc[0] if 'DXY' in latest_row.columns else 100
+    if dxy > 104:
+        insights.append({"title": "USD Headwinds", "desc": "Penguatan Dollar (DXY > 104) menekan harga emas. Korelasi negatif terpantau sangat kuat."})
+    elif dxy < 100:
+        insights.append({"title": "USD Tailwind", "desc": "Dollar yang melemah memberikan dukungan tambahan bagi harga emas di pasar global."})
+
+    # 3. Market Sentiment & Fear
+    vix = latest_row['VIX_Lag1'].iloc[0] if 'VIX_Lag1' in latest_row.columns else 15
+    if vix > 25:
+        insights.append({"title": "Fear Premium", "desc": "VIX menunjukkan kecemasan di pasar saham, meningkatkan daya tarik emas sebagai safe-haven."})
+    elif vix < 15:
+        insights.append({"title": "Risk-On Bias", "desc": "Rendahnya volatilitas pasar (VIX < 15) mendorong aliran dana keluar dari emas ke aset berisiko."})
+
+    # 4. Bond Yields
+    yields = latest_row['US10Y_Lag1'].iloc[0] if 'US10Y_Lag1' in latest_row.columns else 4.0
+    if yields > 4.5:
+        insights.append({"title": "Yield Pressure", "desc": "Kenaikan imbal hasil obligasi AS (US10Y > 4.5%) mengurangi daya tarik emas yang tidak berbunga."})
+
+    # 5. News & Sentiment
+    if sentiment < -0.2:
+        insights.append({"title": "Extreme Pessimism", "desc": "Sentimen berita sangat negatif. Berpotensi terjadi 'Bullish Surprise' jika ada perubahan narasi."})
+    elif sentiment > 0.2:
+        insights.append({"title": "Euphoric Watch", "desc": "Berita sangat positif. Waspadai aksi 'sell on news' oleh pelaku pasar besar."})
+
+    # 6. Volatility & Price Action
+    if abs(daily_change_pct) > 1.5:
+        insights.append({"title": "High Volatility", "desc": "Pergerakan harga harian sangat tajam (>1.5%). Risiko pembalikan mendadak saat ini tinggi."})
+
+    # Always add a base context item
+    insights.append({"title": "The Fed Policy", "desc": "Ekspektasi suku bunga The Fed tetap menjadi jangkar utama pergerakan harga emas."})
+    insights.append({"title": "Geopolitical Hedge", "desc": "Ketidakpastian politik global terus menjaga permintaan emas sebagai pelindung nilai (hedge)."})
+
+    # Shuffle for dynamic feel and return top 3
+    random.shuffle(insights)
+    return insights[:3]
 
 
 @api_bp.route("/prediction")

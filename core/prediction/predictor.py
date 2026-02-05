@@ -14,8 +14,10 @@ import pandas as pd
 from sklearn.ensemble import (
     GradientBoostingRegressor, GradientBoostingClassifier, 
     RandomForestClassifier, HistGradientBoostingClassifier, 
-    ExtraTreesClassifier, VotingClassifier, HistGradientBoostingRegressor
+    ExtraTreesClassifier, VotingClassifier, HistGradientBoostingRegressor,
+    VotingRegressor, ExtraTreesRegressor, StackingRegressor
 )
+from sklearn.linear_model import Ridge, Lasso
 from sklearn.metrics import mean_absolute_error, mean_squared_error, accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPRegressor, MLPClassifier
@@ -31,12 +33,6 @@ def train_model(X: pd.DataFrame, y: pd.Series, quantile: Optional[float] = None)
     """Train a HistGradientBoostingRegressor with optimized v5 Sandbox parameters."""
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, shuffle=False)
 
-    loss_type = 'quantile' if quantile is not None else 'squared_error'
-    model = HistGradientBoostingRegressor(
-        learning_rate=0.03, max_depth=8, max_iter=300, loss=loss_type,
-        quantile=quantile if quantile else 0.5, l2_regularization=0.1,
-        early_stopping=True, validation_fraction=0.1, random_state=42
-    )
     model.fit(X_train, y_train)
     return model, X_test, y_test
 
@@ -173,11 +169,7 @@ def recursive_forecast(
     current_sim_price = current_price_usd
 
     feature_cols = [
-        'USD_IDR', 'DXY', 'Oil', 'SP500', 'NASDAQ', 'Silver', 
-        'SMA_7', 'SMA_14', 'RSI', 'RSI_7', 'ROC_10', 'BB_Width', 
-        'Stoch', 'WilliamsR', 'CCI', 'ATR', 'Return_Lag1', 
-        'Return_Lag2', 'Return_Lag3', 'RSI_Lag1', 'Volatility_5', 'Momentum_5',
-        'Gold_Silver_Ratio', 'VIX_Lag1', 'US10Y_Lag1', 'DXY_Ret_Lag1', 'SP500_Ret_Lag1'
+        'USD_IDR', 'DXY', 'Oil', 'RSI', 'MACD', 'Return_Lag1', 'Gold_Silver_Ratio', 'VIX_Lag1'
     ]
 
     for i in range(1, days + 1):

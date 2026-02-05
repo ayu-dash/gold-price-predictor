@@ -428,6 +428,8 @@ function updateSignalCard(data) {
     reassessSignal(data.current_price_idr_gram, data.change_pct, data.confidence_direction, data.confidence_score, data.is_bullish);
 }
 
+let commentaryInterval = null;
+
 function updateSentimentCard(data) {
     const nPos = data.sentiment_breakdown.positive || 0;
     const nNeg = data.sentiment_breakdown.negative || 0;
